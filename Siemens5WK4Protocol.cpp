@@ -1,4 +1,4 @@
-#include "OpelCarkeyProtocol.h"
+#include "Siemens5WK4Protocol.h"
 
 #define HIGH 0x1
 #define LOW  0x0
@@ -10,7 +10,7 @@
 // The first bitstream is 186-bits long (96 bits preamble of "0"s), followed by 90 data-bits of the command)
 // Next 3 repetitions of the 90 data-bits of the command
 
-OpelCarkeyProtocol::OpelCarkeyProtocol(
+Siemens5WK4Protocol::Siemens5WK4Protocol(
 	char * id,
 	double TimerFrequency ,
 	void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length ),
@@ -22,7 +22,7 @@ OpelCarkeyProtocol::OpelCarkeyProtocol(
 	_TwoButtonsPressedReceivedEvent = TwoButtonsPressedReceivedEvent;
 }
 
-void OpelCarkeyProtocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
+void Siemens5WK4Protocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 {
 	if (WithinExpectedDeviation( _highduration , _oscilator * 8.5f ,  _oscilator / 4) || WithinExpectedDeviation( _highduration , _oscilator * 11.5f ,  _oscilator / 4) )
 	{

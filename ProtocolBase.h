@@ -83,9 +83,9 @@ class ProtocolBase {
 		
 		void SetBitBufferLength(byte *& bitbuffer, byte & bitbufferlength, byte bitpos);
 		
-		void ShiftFirstOut(byte *& bitbuffer, byte & bitbufferlength,  byte& bitpos);
+		void ShiftFirstBitOut(byte *& bitbuffer, byte & bitbufferlength,  byte& bitpos);
 		
-		void FlipDaShit(byte *& bitbuffer, byte & bitbufferlength,  byte bitcount);
+		void FlipBits(byte *& bitbuffer, byte & bitbufferlength,  byte bitcount);
 		
 		// This is a reference to an event which will be invoked when a bitstream is received
 		void (*_BitsstreamReceivedEvent)(ProtocolBase * protocol, byte* buffer , byte length);

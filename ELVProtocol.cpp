@@ -29,7 +29,7 @@ void ELVProtocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 {
 	if (decoder_bitpos>=50 && decoder_bitpos<=GetBitstreamLength())
 	{
-		FlipDaShit(decoder_bitbuffer,decoder_bitbufferlength , decoder_bitpos );
+		FlipBits(decoder_bitbuffer,decoder_bitbufferlength , decoder_bitpos );
 
 		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
 

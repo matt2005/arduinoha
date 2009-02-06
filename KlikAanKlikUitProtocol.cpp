@@ -23,6 +23,8 @@ void KlikAanKlikUitProtocol::DecodeBitstream(unsigned int lasthigh, unsigned int
 	if (decoder_bitpos==GetBitstreamLength())
 	{
 		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
+		
+		byte address = (GetBit(decoder_bitbuffer,decoder_bitbufferlength,1)?1:0)  + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,3)?2:0) + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,5)?4:0) + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,7)?8:0) ;
 		byte device = (GetBit(decoder_bitbuffer,decoder_bitbufferlength,9)?1:0)  + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,11)?2:0) + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,13)?4:0) + (GetBit(decoder_bitbuffer,decoder_bitbufferlength,15)?8:0) ;
 		bool lighton = GetBit(decoder_bitbuffer, decoder_bitbufferlength,23);
 		if (_DeviceCommandReceivedEvent!=0) _DeviceCommandReceivedEvent( this , device , lighton);
@@ -44,4 +46,3 @@ void KlikAanKlikUitProtocol::EncodeDeviceCommand(byte device, bool lighton, byte
   SetBit(bitbuffer, bitbufferlength ,  19 , true);
   SetBit(bitbuffer, bitbufferlength ,  21 , true);
 }
-

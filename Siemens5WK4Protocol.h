@@ -1,10 +1,10 @@
-#ifndef OpelCarkeyProtocol_h
-#define OpelCarkeyProtocol_h
+#ifndef Siemens5WK4Protocol_h
+#define Siemens5WK4Protocol_h
 #include <ManchesterCodeProtocolBase.h>
 
-class OpelCarkeyProtocol : public ManchesterCodeProtocolBase {
+class Siemens5WK4Protocol : public ManchesterCodeProtocolBase {
 	public:
-		OpelCarkeyProtocol(
+		Siemens5WK4Protocol(
 			char * id,
 			double TimerFrequency ,
 			void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length),

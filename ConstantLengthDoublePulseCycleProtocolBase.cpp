@@ -38,7 +38,7 @@ void ConstantLengthDoublePulseCycleProtocolBase::Decode(short state, unsigned in
 			{
 				if (WithinExpectedDeviation( _prev_pulsecycleduration , (_shortperiods+_longperiods) * _timeperiodduration ,  _timeperiodduration / 8) )
 				{
-					FlipDaShit(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+					FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 				} else
 				{
 					AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , false);				
@@ -48,7 +48,7 @@ void ConstantLengthDoublePulseCycleProtocolBase::Decode(short state, unsigned in
 			// Are there more bits in the buffer than is expected for this protocol?
 			if (decoder_bitpos > GetBitstreamLength()) 
 			{ 
-				ShiftFirstOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+				ShiftFirstBitOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 			}
 		} else if (WithinExpectedDeviation( pulsecycleduration , ( _shortperiods + _shortperiods ) * _timeperiodduration ,  _timeperiodduration / 8) )
 		{
@@ -56,7 +56,7 @@ void ConstantLengthDoublePulseCycleProtocolBase::Decode(short state, unsigned in
 			{
 				if (WithinExpectedDeviation( _prev_pulsecycleduration , ( _shortperiods + _shortperiods ) * _timeperiodduration ,  _timeperiodduration / 8) ) 
 				{
-					FlipDaShit(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+					FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 				} else
 				{
 					AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , true);			
@@ -66,7 +66,7 @@ void ConstantLengthDoublePulseCycleProtocolBase::Decode(short state, unsigned in
 			// Are there more bits in the buffer than is expected for this protocol?
 			if (decoder_bitpos > GetBitstreamLength()) 
 			{ 
-				ShiftFirstOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+				ShiftFirstBitOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 			}
 		} else 
 		{

@@ -38,7 +38,7 @@ void ConstantLengthPulseCycleProtocolBase::Decode(short state, unsigned int dura
 	  	// Are there more bits in the buffer than is expected for this protocol?
 		if (decoder_bitpos == GetBitstreamLength()) 
 		{ 
-			ShiftFirstOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+			ShiftFirstBitOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
         }
 
         if (_highpulseduration > duration )

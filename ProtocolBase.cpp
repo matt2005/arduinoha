@@ -32,11 +32,13 @@ ProtocolBase::ProtocolBase(
 	ResetDecoder();
 }
 
+// This method return the length of the normal bitstream
 int ProtocolBase::GetBitstreamLength()
 {
 	return _bitstreamlength;
 }
 
+// This method returns the number of repeats te protocol normally is sent
 int ProtocolBase::GetSendRepeats()
 {
 	return _sendrepeats;
@@ -109,9 +111,10 @@ void ProtocolBase::AddBit(byte *& bitbuffer, byte & bitbufferlength,  byte& bitp
   bitpos++;
 }
 
-void ProtocolBase::ShiftFirstOut(byte *& bitbuffer, byte & bitbufferlength,  byte& bitpos)
+// This function shifts the first bit out of the buffer
+void ProtocolBase::ShiftFirstBitOut(byte *& bitbuffer, byte & bitbufferlength,  byte& bitpos)
 {
-  for (int idx=1;idx<bitbufferlength;idx++)
+  for (int idx=1;idx<bitpos;idx++)
   {
 	SetBit(bitbuffer , bitbufferlength, idx - 1 , GetBit( bitbuffer , bitbufferlength , idx ) );
   }
@@ -125,20 +128,23 @@ bool ProtocolBase::GetBit(byte * bitbuffer, byte bitbufferlength , unsigned shor
   byte bytepos = bitpos >> 3;
   
   // Is the bit outside the buffer?
-  if (bytepos >= bitbufferlength) 
+  if (bytepos >= bitbufferlength || bitbuffer==0) 
   { // bitpos is outside the allocated buffer range
     return false;
   }
+  
   if ((bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0) return true;
   return false;
 }
 
+//
 void ProtocolBase::SetBitBufferLength(byte *& bitbuffer, byte & bitbufferlength, byte bitpos)
 {
 	SetBit(bitbuffer, bitbufferlength , bitpos , false);
 }
 
-void ProtocolBase::FlipDaShit(byte *& bitbuffer, byte & bitbufferlength, byte bitcount)
+// This method flips inverts the bits of the buffer
+void ProtocolBase::FlipBits(byte *& bitbuffer, byte & bitbufferlength, byte bitcount)
 {
 	for (int idx=0;idx<bitcount;idx++)
 	{

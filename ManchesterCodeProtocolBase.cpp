@@ -50,7 +50,7 @@ void ManchesterCodeProtocolBase::Decode(short state, unsigned int duration)
 		{	// double high, single low
 			if (mc_insync)
 			{ // Error, sync incorrect
-				FlipDaShit(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+				FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 				mc_insync = !mc_insync;
 			}
 			
@@ -60,7 +60,7 @@ void ManchesterCodeProtocolBase::Decode(short state, unsigned int duration)
 		{ // single high, double low
 			if (!mc_insync)
 			{ // Error, sync incorrect
-				FlipDaShit(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+				FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 				mc_insync = !mc_insync;
 			}
 			
@@ -72,7 +72,7 @@ void ManchesterCodeProtocolBase::Decode(short state, unsigned int duration)
       { // double high, double low
 			if (mc_insync)
 			{ // Error, sync incorrect
-				FlipDaShit(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+				FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 				mc_insync = !mc_insync;
 			}
 			AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , false);
