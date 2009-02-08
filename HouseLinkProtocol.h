@@ -8,14 +8,12 @@ class HouseLinkProtocol : public ConstantLengthHighPulseProtocolBase {
 			char * id,
 			double TimerFrequency,
 			void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length),
-			void (*DeviceTrippedEvent)(ProtocolBase * protocol , byte device ),
-			void (*DeviceBatteryEmptyEvent)(ProtocolBase * protocol , byte device )
+			void (*DeviceTrippedEvent)(ProtocolBase * protocol , byte group , byte device , bool state)
 		);
 
-		void EncodeDeviceCommand(byte device, bool lighton, byte *& encodedpulsestream, byte &encodedpulsestreamlength );
+		void EncodeDeviceCommand(byte group, byte device, bool state, byte *& encodedpulsestream, byte &encodedpulsestreamlength );
 	private:
-		void (*_DeviceTrippedEvent)(ProtocolBase * protocol, byte device );
-		void (*_DeviceBatteryEmptyEvent)(ProtocolBase * protocol, byte device );
+		void (*_DeviceTrippedEvent)(ProtocolBase * protocol, byte group, byte device , bool state);
 	protected:
 		void DecodeBitstream(unsigned int lasthigh, unsigned int lastlow);
 };

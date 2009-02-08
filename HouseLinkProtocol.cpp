@@ -4,31 +4,39 @@ HouseLinkProtocol::HouseLinkProtocol(
 	char * id,
 	double TimerFrequency,
 	void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length ),
-	void (*DeviceTrippedEvent)(ProtocolBase * protocol , byte device ),
-	void (*DeviceBatteryEmptyEvent)(ProtocolBase * protocol , byte device )
-	) : ConstantLengthHighPulseProtocolBase(id, BitsstreamReceivedEvent, 15 , 1, (TimerFrequency / 1953.125f) , (TimerFrequency / 771.6049f) , 1 , 3)
+	void (*DeviceTrippedEvent)(ProtocolBase * protocol , byte group , byte device , bool state )
+	) : ConstantLengthHighPulseProtocolBase(id, BitsstreamReceivedEvent, 14 , 1, (TimerFrequency / 994.7477f) , 1 , 2)
 {
 	_DeviceTrippedEvent = DeviceTrippedEvent;
-	_DeviceBatteryEmptyEvent = DeviceBatteryEmptyEvent;
 }
 
 void HouseLinkProtocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 {
 	if ( decoder_bitpos==GetBitstreamLength() )
 	{
-	if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
-	
-	
-/*	bool BatteryEmpty = !GetBit(decoder_bitbuffer, decoder_bitbufferlength, 16);
-
-	unsigned short int device = (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 15)?1:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 13)? 2:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 11)? 4:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 9)?8:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 7)?16:0)  + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 5)? 32:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 3)?64:0) + (!GetBit(decoder_bitbuffer, decoder_bitbufferlength, 1)?128:0) ;
-
-	if (_DeviceTrippedEvent!=0) _DeviceTrippedEvent(this, device);
-	if (_DeviceBatteryEmptyEvent!=0 && BatteryEmpty)  _DeviceBatteryEmptyEvent(this, device);*/
+		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
+		
+		byte device = 0;
+		for (int idx=0;idx<=5;idx++)
+		{ 
+			device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, idx)? (32 >>idx):0) ;
+		}
+		byte group = (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 9)?2:0)  + (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 10)? 1:0);
+		
+		bool checkbit = false;
+		for (int idx=0;idx<=11;idx++)
+		{
+			if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, idx)) checkbit = !checkbit;
+		}
+		bool state = GetBit(decoder_bitbuffer, decoder_bitbufferlength, 11);
+		if (checkbit == GetBit(decoder_bitbuffer, decoder_bitbufferlength, 12))
+		{
+			if (_DeviceTrippedEvent!=0) _DeviceTrippedEvent(this, group, device, state );
+		}
+	}
 }
-}
 
-void HouseLinkProtocol::EncodeDeviceCommand(byte device, bool lighton, byte *& bitbuffer, byte &bitbufferlength )
+void HouseLinkProtocol::EncodeDeviceCommand(byte group , byte device, bool state, byte *& bitbuffer, byte &bitbufferlength )
 {
   bitbuffer = 0;
   bitbufferlength = 0;

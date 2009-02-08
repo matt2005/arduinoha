@@ -24,17 +24,20 @@ Siemens5WK4Protocol::Siemens5WK4Protocol(
 
 void Siemens5WK4Protocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 {
-	if (WithinExpectedDeviation( _highduration , _oscilator * 8.5f ,  _oscilator / 4) || WithinExpectedDeviation( _highduration , _oscilator * 11.5f ,  _oscilator / 4) )
+	if (decoder_bitpos>=82)
 	{
-		int startpos = decoder_bitpos - 90;
-		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent(this, decoder_bitbuffer , decoder_bitpos);
-		if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 14))
-		{		
-			if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 15) && _TwoButtonsPressedReceivedEvent!=0 )  _TwoButtonsPressedReceivedEvent(this);
-		} else
+		if (WithinExpectedDeviation( _highduration , _oscilator * 8.5f ,  _oscilator / 4) || WithinExpectedDeviation( _highduration , _oscilator * 11.5f ,  _oscilator / 4) )
 		{
-			if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 16) && _LockCommandReceivedEvent!=0 )  _LockCommandReceivedEvent(this,  true);
-			if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 15) && _LockCommandReceivedEvent!=0 )  _LockCommandReceivedEvent(this,  false);
+			int startpos = decoder_bitpos - 82 ;
+			if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent(this, decoder_bitbuffer , decoder_bitpos);
+			if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 6))
+			{	
+				if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 7) && _TwoButtonsPressedReceivedEvent!=0 )  _TwoButtonsPressedReceivedEvent(this);
+			} else
+			{
+				if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 8) && _LockCommandReceivedEvent!=0 )  _LockCommandReceivedEvent(this,  true);
+				if (GetBit(decoder_bitbuffer, decoder_bitbufferlength, startpos + 7) && _LockCommandReceivedEvent!=0 )  _LockCommandReceivedEvent(this,  false);
+			}
 		}
 	}	
 }

@@ -20,7 +20,7 @@ class ManchesterCodeProtocolBase : public ProtocolBase {
 		float _oscilator;
 		float _terminatoroscilators ;
 		bool mc_insync;
-		virtual void DecodeBitstream();
+		virtual void DecodeBitstream(unsigned int lasthigh, unsigned int lastlow);
 };
 
 #endif

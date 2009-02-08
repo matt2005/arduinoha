@@ -114,11 +114,18 @@ void ProtocolBase::AddBit(byte *& bitbuffer, byte & bitbufferlength,  byte& bitp
 // This function shifts the first bit out of the buffer
 void ProtocolBase::ShiftFirstBitOut(byte *& bitbuffer, byte & bitbufferlength,  byte& bitpos)
 {
+  if (bitbuffer==0 || bitbufferlength==0 || bitpos==0) return;
+  byte * bitbuffer2 = 0;
+  byte bitbufferlength2 = 0;
+  byte bitpos2 = 0;
   for (int idx=1;idx<bitpos;idx++)
   {
-	SetBit(bitbuffer , bitbufferlength, idx - 1 , GetBit( bitbuffer , bitbufferlength , idx ) );
+	AddBit(bitbuffer2 , bitbufferlength2, bitpos2 ,  GetBit( bitbuffer , bitbufferlength , idx ) );
   }
-  bitpos --;  
+  free(bitbuffer);
+  bitbuffer = bitbuffer2;
+  bitbufferlength = bitbufferlength2;
+  bitpos = bitpos2;
 }
 
 // This function returns the bitvalue

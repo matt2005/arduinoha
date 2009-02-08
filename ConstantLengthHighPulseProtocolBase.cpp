@@ -1,5 +1,5 @@
 #include "ConstantLengthHighPulseProtocolBase.h"
-
+#include <hardwareserial.h>
 
 #define HIGH 0x1
 #define LOW  0x0
@@ -11,13 +11,11 @@ ConstantLengthHighPulseProtocolBase::ConstantLengthHighPulseProtocolBase(
 	int bitstreamlength,
 	int sendrepeats , 
 	float timeperiodduration , // The duration of one oscillation
-	float syncbitperiods , // The number of timeperiods in the entire syncbit-pulsecycle
-	float shortperiods , // The number of timeperiods in a short-pulse
-	float longperiods // The number of timeperiods in a long-pulse
+	float shortperiods , // The number of timeperiods in a short-pulsecycle
+	float longperiods // The number of timeperiods in a long-pulsecycle
 	) : ProtocolBase(id , BitsstreamReceivedEvent , bitstreamlength , sendrepeats)
 {
 	_timeperiodduration = timeperiodduration;
-	_syncbitperiods = syncbitperiods;
 	_shortperiods = shortperiods;
 	_longperiods = longperiods;
 	
@@ -29,18 +27,27 @@ void ConstantLengthHighPulseProtocolBase::Decode(short state, unsigned int durat
     if (state==LOW)
     {
 		unsigned int pulsecycleduration = duration + _highpulseduration ;
-		if (WithinExpectedDeviation( pulsecycleduration , (_shortperiods+_longperiods) * _timeperiodduration ,  _timeperiodduration / 8) )
+		if (WithinExpectedDeviation( pulsecycleduration , _shortperiods * _timeperiodduration ,  _timeperiodduration / 8) )
 		{
+			// Are there more bits in the buffer than is expected for this protocol?
+			if (decoder_bitpos == GetBitstreamLength()) 
+			{ 
+				ShiftFirstBitOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+			}
 			AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , false);				
 
-		} else if (WithinExpectedDeviation( pulsecycleduration , ( _shortperiods + _shortperiods ) * _timeperiodduration ,  _timeperiodduration / 8) )
+		} else if (WithinExpectedDeviation( pulsecycleduration , _longperiods * _timeperiodduration ,  _timeperiodduration / 8) )
 		{
+			// Are there more bits in the buffer than is expected for this protocol?
+			if (decoder_bitpos == GetBitstreamLength()) 
+			{ 
+				ShiftFirstBitOut(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
+			}
 			AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , true);			
 		} else 
 		{
 			DecodeBitstream(_highpulseduration, duration);
 			ResetDecoder();
-			pulsecycleduration = 0;
 		}
     } else if (state==HIGH)
 	{
@@ -62,16 +69,6 @@ void ConstantLengthHighPulseProtocolBase::EncodeBit(unsigned int *& pulsebuffer,
   {
   	SetPulse(pulsebuffer, pulsebufferlength, 1 , _shortperiods * _timeperiodduration );
   } 
-}
-
-// This function returns a buffer with the pulse data of the terminator for this protocol
-void ConstantLengthHighPulseProtocolBase::EncodeTerminator(unsigned int *& pulsebuffer, byte & pulsebufferlength) 
-{
-  pulsebuffer = 0;
-  pulsebufferlength = 0;
-  
-  SetPulse(pulsebuffer, pulsebufferlength, 0 , _shortperiods * _timeperiodduration );
-  SetPulse(pulsebuffer, pulsebufferlength, 1 , _syncbitperiods * _timeperiodduration );
 }
 
 void ConstantLengthHighPulseProtocolBase::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)

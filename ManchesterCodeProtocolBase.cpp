@@ -85,7 +85,7 @@ void ManchesterCodeProtocolBase::Decode(short state, unsigned int duration)
 		}
 		if (decoder_bitpos>=GetBitstreamLength() )
 		{ 
-			DecodeBitstream();
+			DecodeBitstream(_highduration, duration);
 		}
 		ResetDecoder();
 		mc_insync = false;
@@ -97,7 +97,7 @@ void ManchesterCodeProtocolBase::Decode(short state, unsigned int duration)
 	}
 }
 
-void ManchesterCodeProtocolBase::DecodeBitstream()
+void ManchesterCodeProtocolBase::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 {
 	if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
 }

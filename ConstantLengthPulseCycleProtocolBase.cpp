@@ -33,7 +33,7 @@ void ConstantLengthPulseCycleProtocolBase::Decode(short state, unsigned int dura
 {
     if (state==LOW)
     {
-      if (WithinExpectedDeviation( duration + _highpulseduration , (_shortperiods+_longperiods) * _timeperiodduration ,  _timeperiodduration ) )
+      if (WithinExpectedDeviation( duration + _highpulseduration , (_shortperiods+_longperiods) * _timeperiodduration ,  _timeperiodduration / 2 ) )
       {
 	  	// Are there more bits in the buffer than is expected for this protocol?
 		if (decoder_bitpos == GetBitstreamLength()) 
