@@ -66,12 +66,12 @@ void ConstantLengthPulseCycleProtocolBase::EncodeBit(unsigned int *& pulsebuffer
   pulsebufferlength = 0;
   if (bitvalue)
   {
-    SetPulse(pulsebuffer, pulsebufferlength, 0 , 12 * _timeperiodduration );
-    SetPulse(pulsebuffer, pulsebufferlength, 1 , 4 * _timeperiodduration );
+    SetPulse(pulsebuffer, pulsebufferlength, 0 , _longperiods * _timeperiodduration );
+    SetPulse(pulsebuffer, pulsebufferlength, 1 , _shortperiods * _timeperiodduration );
   } else
   {
-    SetPulse(pulsebuffer, pulsebufferlength, 0 , 4 * _timeperiodduration );
-    SetPulse(pulsebuffer, pulsebufferlength, 1 , 12 * _timeperiodduration );
+    SetPulse(pulsebuffer, pulsebufferlength, 0 , _shortperiods * _timeperiodduration );
+    SetPulse(pulsebuffer, pulsebufferlength, 1 , _longperiods * _timeperiodduration );
   }
 }
 
@@ -81,8 +81,8 @@ void ConstantLengthPulseCycleProtocolBase::EncodeTerminator(unsigned int *& puls
   pulsebuffer = 0;
   pulsebufferlength = 0;
   
-  SetPulse(pulsebuffer, pulsebufferlength, 0 , 4 * _timeperiodduration );
-  SetPulse(pulsebuffer, pulsebufferlength, 1 , 128 * _timeperiodduration );
+  SetPulse(pulsebuffer, pulsebufferlength, 0 , _shortperiods * _timeperiodduration );
+  SetPulse(pulsebuffer, pulsebufferlength, 1 , 16 * _timeperiodduration );
 }
 
 
