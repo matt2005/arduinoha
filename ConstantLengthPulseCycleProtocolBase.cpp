@@ -82,7 +82,7 @@ void ConstantLengthPulseCycleProtocolBase::EncodeTerminator(unsigned int *& puls
   pulsebufferlength = 0;
   
   SetPulse(pulsebuffer, pulsebufferlength, 0 , _shortperiods * _timeperiodduration );
-  SetPulse(pulsebuffer, pulsebufferlength, 1 , 16 * _timeperiodduration );
+  SetPulse(pulsebuffer, pulsebufferlength, 1 , 32 * _timeperiodduration );
 }
 
 
