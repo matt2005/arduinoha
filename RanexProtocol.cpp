@@ -9,7 +9,7 @@ RanexProtocol::RanexProtocol(
 	double TimerFrequency ,
 	void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length ),
 	void (*DeviceCommandReceivedEvent)(ProtocolBase * protocol , byte device , bool turnoncommand)
-	) : ConstantLengthPulseCycleProtocolBase(id, BitsstreamReceivedEvent , 24 , 4 , (TimerFrequency / 4369.993f) , 1 , 3 )
+	) : ConstantLengthPulseCycleProtocolBase(id, BitsstreamReceivedEvent , 24 , 5 , (TimerFrequency / 4369.993f) , 1 , 3 )
 {	
 	_DeviceCommandReceivedEvent = DeviceCommandReceivedEvent;
 }

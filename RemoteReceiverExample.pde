@@ -1,28 +1,33 @@
+// Base and utility includes
 #include <ProtocolBase.h>
 #include <ProtocolCommand.h>
 #include <DynamicArrayHelper.h>
 
+// Protocol includes
 #include <KlikAanKlikUitProtocol.h>
-#include <RanexProtocol.h>n
-//#include <FranElecProtocol.h>
+#include <RanexProtocol.h>
+#include <ElroProtocol.h>
+#include <FranElecProtocol.h>
 #include <LaCrosseProtocol.h>
 #include <SkytronicProtocol.h>
-#include <OpelCarkeyProtocol.h>
+#include <Siemens5WK4Protocol.h>
 #include <McVoiceProtocol.h>
 #include <HouseLinkProtocol.h>
-//#include <UnknownManchester1.h>
+#include <X10Protocol.h>
 #include <ELVProtocol.h>
 
 #define ShowReceivedCommands
-//#define ShowReceivedPulses
+#define ShowReceivedPulses
 #define ShowReceivedBitstream
 #define ShowSendBitstream
+//#define Automate
 //#define ShowSendPulses
 
+// Struct which is used to store received pulses in a buffer
 struct pulse 
 {
   byte state;
-  int duration;
+  unsigned int duration;
 };
 
 unsigned long int currenttime = 0;
@@ -238,7 +243,6 @@ ISR(TIMER1_OVF_vect)
 // This function will be triggered by a high RSSI signal
 void rssiPinTriggered(void)
 {
-//  cli();
   if (sendreceivestate==waitingforrssitrigger)
   {
     digitalWrite(STATUSLEDPIN, HIGH);
@@ -252,13 +256,11 @@ void rssiPinTriggered(void)
     //clear the ICES1 bit so next INT is on falling edge
     TCCR1B&=(~(1<<ICES1));      
 
-  #ifdef ShowReceivedPulses
-    showidx=0;Serial.println("RSSI");
-  #endif
-
+    #ifdef ShowReceivedPulses
+      showidx=0;Serial.println("RSSI");
+    #endif
   }
   lastrssitrigger = currenttime;  
-//  sei();
 }
 
 void ShowBitstream(ProtocolBase * protocol, byte * bitbuffer, byte length)
@@ -275,26 +277,30 @@ void ShowBitstream(ProtocolBase * protocol, byte * bitbuffer, byte length)
 }
 
 char * Ranex433ID = "Ranex433";
+char * Elro433ID = "Elro433";
 char * Kaku433ID = "Kaku433";
-//char * FranElec433ID = "FE433";
+char * FranElec433ID = "FE433";
 char * Skytronic433ID = "ST433";
 char * LaCrosse433ID = "LC433";
-char * OpelCarkey433ID = "OCK433";
+char * Siemens5WK4433ID = "OCK433";
 char * McVoice433ID = "MCV433";
 char * HouseLink433ID = "HL433";
+char * X10433ID = "X10433";
 char * Unknown1433ID = "UK1433";
 char * ELV868ID = "ELV868" ;
 
 double TIMERFREQUENCY =  (F_CPU / 256.0f);
 
 RanexProtocol ranex = RanexProtocol( Ranex433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived);
+ElroProtocol elro = ElroProtocol( Elro433ID, TIMERFREQUENCY , ShowBitstream, ElroCommandReceived);
 KlikAanKlikUitProtocol kaku = KlikAanKlikUitProtocol( Kaku433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived);
-//FranElecProtocol franelec = FranElecProtocol( FranElec433ID, TIMERFREQUENCY , ShowBitstream, FranElecTrigger, FranElecTrigger);
+FranElecProtocol franelec = FranElecProtocol( FranElec433ID, TIMERFREQUENCY , ShowBitstream, FranElecTrigger, FranElecTrigger);
 SkytronicProtocol skytronic = SkytronicProtocol( Skytronic433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived, AllDevicesCommandReceived);
 LaCrosseProtocol lacrosse = LaCrosseProtocol( LaCrosse433ID, TIMERFREQUENCY , ShowBitstream, TemperatureReceived, HygroReceived, RainReceived);
-OpelCarkeyProtocol opelcarkey = OpelCarkeyProtocol( OpelCarkey433ID, TIMERFREQUENCY , ShowBitstream, LockCommandReceived , TwoButtonsPressedReceived);
+Siemens5WK4Protocol siemens5wk4 = Siemens5WK4Protocol( Siemens5WK4433ID , TIMERFREQUENCY , ShowBitstream, LockCommandReceived , TwoButtonsPressedReceived);
 McVoiceProtocol mcvoice = McVoiceProtocol( McVoice433ID, TIMERFREQUENCY , ShowBitstream , DeviceTrippedReceived , BatteryEmptyReceived );
-HouseLinkProtocol houselink = HouseLinkProtocol( HouseLink433ID, TIMERFREQUENCY , ShowBitstream , DeviceTrippedReceived , BatteryEmptyReceived );
+HouseLinkProtocol houselink = HouseLinkProtocol( HouseLink433ID, TIMERFREQUENCY , ShowBitstream , HomeLinkDeviceTrippedReceived  );
+X10Protocol x10 = X10Protocol( X10433ID, TIMERFREQUENCY , ShowBitstream ,  X10CommandReceived );
 ELVProtocol elv = ELVProtocol( ELV868ID, TIMERFREQUENCY , ShowBitstream , TemperatureReceived, HygroReceived );
 
 void PrintNewLine()
@@ -315,16 +321,6 @@ void PrintBit(bool value)
 void PrintFloat(float value)
 {
   int deg=(int)fabs(value); Serial.print(deg,DEC);Serial.print(".");int frac=(int)(fabs(value*10.0f)) % 10; Serial.print(frac,DEC);
-}
-
-void ValueReceived(ProtocolBase * protocol, int value)
-{
-  #ifdef ShowReceivedCommands
-    PrintProtocolId(protocol);
-    Serial.print(value,DEC);
-    PrintNewLine();
-  #endif
-  
 }
     
 void TemperatureReceived(ProtocolBase * protocol, byte device, float temperature)
@@ -374,22 +370,113 @@ void CommandReceived(ProtocolBase * protocol, byte device, bool lightoncommand)
   #endif
 }
 
+void ElroCommandReceived(ProtocolBase * protocol, byte group, byte device, bool lightoncommand)
+{
+  #ifdef ShowReceivedCommands
+    PrintProtocolId(protocol);
+    Serial.print(group,DEC);Serial.print(" ");
+    Serial.print(device,DEC);
+    Serial.print(" ");
+    if (lightoncommand) Serial.println("On"); else Serial.println("Off");
+  #endif
+}
+
+
 void LockCommandReceived(ProtocolBase * protocol, bool lockcommand)
 {
   #ifdef ShowReceivedCommands
     PrintProtocolId(protocol);
     if (lockcommand) Serial.println("Lock"); else Serial.println("Unlock");
   #endif
+
+  #ifdef Automate  
+  // If a button from a car key is pressed, turn on the front-porch-lighting for a minute
+  byte * bitbuffer = 0;
+  byte bitbufferlength = 0;
+  skytronic.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+  int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &skytronic , bitbuffer,  bitbufferlength);
+  if (ii==-1)
+  {       
+    byte * bitbuffer2 = 0;
+    byte bitbufferlength2 = 0;
+    skytronic.EncodeDeviceCommand( 0 , true , bitbuffer2 , bitbufferlength2 );
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer2 , bitbufferlength2 , true, true);
+    ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+  } else
+  {
+    ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+  #endif
 }
 
-void DeviceTrippedReceived(ProtocolBase * protocol, byte device)
+void DeviceTrippedReceived(ProtocolBase * protocol,byte device)
 {
   #ifdef ShowReceivedCommands
     PrintProtocolId(protocol);
     Serial.print(device,DEC);
-    Serial.println("Tripped");
+    Serial.println("Tripped"); 
   #endif
 }
+
+void HomeLinkDeviceTrippedReceived(ProtocolBase * protocol,byte group, byte device, bool state)
+{
+  #ifdef ShowReceivedCommands
+    PrintProtocolId(protocol);
+    Serial.print(group,DEC);Serial.print(" ");
+    Serial.print(device,DEC);
+    if (state) Serial.println("Tripped"); else Serial.println("Idle");
+  #endif
+}
+
+void X10CommandReceived(ProtocolBase * protocol, byte group, byte device, bool state)
+{
+  #ifdef ShowReceivedCommands
+    PrintProtocolId(protocol);
+    Serial.print(group,DEC);Serial.print(" ");
+    Serial.print(device,DEC);
+    if (state) Serial.println("On"); else Serial.println("Off");
+  #endif
+  
+  #ifdef Automate
+  if (device==4)
+  {
+    // turn all lights in the living room on
+    for (int dev=0;dev<5;dev++)
+    {    
+      byte * bitbuffer;
+      byte bitbufferlength ;
+      ranex.EncodeDeviceCommand( dev , true , bitbuffer , bitbufferlength );
+      if (bitbuffer==0) return;
+    
+      int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &ranex , bitbuffer,  bitbufferlength);
+      if (ii==-1)
+      {
+         ScheduleCommand( 0.0f  , &ranex , bitbuffer , bitbufferlength , true, true);
+      } 
+    }  
+  }
+  
+  if (device==0)
+  {
+    // turn all lights in the living room off
+    for (int dev=0;dev<5;dev++)
+    {    
+      byte * bitbuffer;
+      byte bitbufferlength ;
+      ranex.EncodeDeviceCommand( dev , false , bitbuffer , bitbufferlength );
+      if (bitbuffer==0) return;
+    
+      int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &ranex , bitbuffer,  bitbufferlength);
+      if (ii==-1)
+      {
+         ScheduleCommand( 0.0f  , &ranex , bitbuffer , bitbufferlength , true, true);
+      } 
+    }  
+  }
+
+  #endif
+}
+
 
 void BatteryEmptyReceived(ProtocolBase * protocol, byte device)
 {
@@ -408,30 +495,42 @@ void TwoButtonsPressedReceived(ProtocolBase * protocol)
     Serial.println("Alarm");
   #endif
   
-  /**
-  // When i press the alarm button of my carkey, turn all lights on
+  #ifdef Automate  
+  // If the two buttons are pressed, turn on the front-porch-lighting for a minute
+  byte * bitbuffer = 0;
+  byte bitbufferlength = 0;
+  skytronic.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+  int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &skytronic , bitbuffer,  bitbufferlength);
+  if (ii==-1)
+  {       
+    byte * bitbuffer2 = 0;
+    byte bitbufferlength2 = 0;
+    skytronic.EncodeDeviceCommand( 0 , true , bitbuffer2 , bitbufferlength2 );
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer2 , bitbufferlength2 , true, true);
+    ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+  } else
+  {
+    ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+  
+  // turn all lights in the living room on
   for (int dev=0;dev<5;dev++)
   {    
     byte * bitbuffer;
     byte bitbufferlength ;
-    ranex.EncodeDeviceCommand( dev , false , bitbuffer , bitbufferlength );
+    ranex.EncodeDeviceCommand( dev , true , bitbuffer , bitbufferlength );
     if (bitbuffer==0) return;
     
     int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &ranex , bitbuffer,  bitbufferlength);
     if (ii==-1)
     {
-       byte * bitbuffer2 ;
-       byte bitbufferlength2 ;
-       ranex.EncodeDeviceCommand( dev , true , bitbuffer2 , bitbufferlength2 );
-       if (bitbuffer2==0) return;
+       ScheduleCommand( 0.0f  , &ranex , bitbuffer , bitbufferlength , true, true);
+    } 
+  }
+  #endif
 
-       ScheduleCommand( 0.0f  , &ranex , bitbuffer2 , bitbufferlength2 , true, true);
-       ScheduleCommand( 60.0f , &ranex , bitbuffer , bitbufferlength , true, true);
-    } else
-    {
-        ScheduleCommand( 60.0f , &ranex , bitbuffer , bitbufferlength , true, true);
-    }
-  }  */
+  
+  
 }
 
 void AllDevicesCommandReceived(ProtocolBase * protocol, bool lightoncommand)
@@ -447,10 +546,12 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
 {
     #ifdef ShowReceivedCommands
     PrintProtocolId(protocol);
-    Serial.print(device,DEC);
+    Serial.println(device,DEC);
     #endif
 
-/*    if (device==208)
+    #ifdef Automate
+    // Als beweging gemeld in de gang begane grond, licht aanzetten voor 1 minuut
+    if (device==47)
     {
       byte * bitbuffer = 0;
       byte bitbufferlength = 0;
@@ -465,11 +566,13 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
        ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       } else
       {
-        ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+        // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
+        ScheduleCommand( 300.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       }
-    }*/
+    }
     
-/*    if (device==220)
+    // Als beweging gemeld in gang 1e verdieping, verlichting gang 1 minuut aan
+    if (device==35)
     {
       byte * bitbuffer = 0;
       byte bitbufferlength = 0;
@@ -484,11 +587,13 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
        ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       } else
       {
-        ScheduleCommand( 60.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+        // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.        
+        ScheduleCommand( 300.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       }
-    }*/
+    }
 
-/*    if (device==254)
+    // Als beweging op 2e verdieping gang, aanzetten verlichting voor 1 minuut
+    if (device==1)
     {
       byte * bitbuffer = 0;
       byte bitbufferlength = 0;
@@ -503,9 +608,33 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
        ScheduleCommand( 60.0f  , &kaku , bitbuffer , bitbufferlength , true, true);
       } else
       {
-        ScheduleCommand( 60.0f , &kaku , bitbuffer , bitbufferlength , true, true);
+        // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
+        ScheduleCommand( 300.0f , &kaku , bitbuffer , bitbufferlength , true, true);
       }
-    }*/
+    }
+    
+    // Als beweging in het CV hok, 2e verdieping, aanzetten gang verlichting 2e verdieping
+    if (device==0)
+    {
+      byte * bitbuffer = 0;
+      byte bitbufferlength = 0;
+      kaku.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+      int ii = IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, &kaku , bitbuffer,  bitbufferlength);
+      if (ii==-1)
+      {       
+       byte * bitbuffer2 = 0;
+       byte bitbufferlength2 = 0;
+       kaku.EncodeDeviceCommand( 0 , true , bitbuffer2 , bitbufferlength2 );
+       ScheduleCommand( 0.0f , &kaku , bitbuffer2 , bitbufferlength2 , true, true);
+       ScheduleCommand( 120.0f  , &kaku , bitbuffer , bitbufferlength , true, true);
+      } else
+      {
+        // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
+        ScheduleCommand( 300.0f , &kaku , bitbuffer , bitbufferlength , true, true);
+      }
+    }
+    #endif
+
 }
 
 
@@ -528,6 +657,8 @@ void GetNextSendPulses()
       sendreceivestate = sendingfinished ;
       free(send_bitbuffer);
       send_bitbuffer = 0;
+      
+      sendnextcommand();
     } else
     {
       send_repeats -- ;
@@ -625,7 +756,7 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
   int idx=IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, protocol, bitbuffer,  bitbufferlength);
 
   unsigned long scheduledtime = currenttime ;
-  scheduledtime += (seconds * 1024l) ;
+  scheduledtime += (seconds * 1000l) ;
   
   // Is this Command aleady scheduled
   if (idx!=-1)
@@ -652,6 +783,10 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
 
 void loop_scheduledcommands()
 {
+    if (ScheduledCommandsCount>0)
+    {
+      digitalWrite(STATUSLEDPIN, !digitalRead(STATUSLEDPIN));
+    }
     for (int idx=ScheduledCommandsCount-1; idx>=0; idx--)
     {
       if (currenttime >= ScheduledCommands[idx].scheduledtime )
@@ -665,20 +800,11 @@ void loop_scheduledcommands()
     }
 }
 
-void loop_queuedcommands()
+void sendnextcommand()
 {
   if (QueuedCommandsCount>0)
   {
-    // Calculate the number of milliseconds after the last RSSI trigger
-    unsigned long delta = currenttime - lastrssitrigger;
-
-    // Are we waiting for an rssi-trigger or listening for pulses and the duration have passed?
-    if ( (sendreceivestate == waitingforrssitrigger || sendreceivestate==listeningforpulses) && delta > SEND_SILENCEDURATION)
-    { // Yes
       sendreceivestate = stopped;
-      detachInterrupt(RSSIIRQNR);      
-      TIMSK1=0; //Disable timer interrupt; Stop edge timer, stop overflow interrupt
-      
       protocolcommand pc = QueuedCommands[0];      
       send_protocol = pc.protocol;
       send_bitbuffer = pc.bitbuffer;
@@ -698,6 +824,24 @@ void loop_queuedcommands()
         PrintNewLine();
       #endif
       GetNextSendPulses();
+  }
+}
+
+void loop_queuedcommands()
+{
+  if (QueuedCommandsCount>0)
+  {
+    // Calculate the number of milliseconds after the last RSSI trigger
+    unsigned long delta = currenttime - lastrssitrigger;
+
+    // Are we waiting for an rssi-trigger or listening for pulses and the duration have passed?
+    if ( (sendreceivestate == waitingforrssitrigger) || (sendreceivestate==listeningforpulses && delta > SEND_SILENCEDURATION) )
+    { // Yes
+      sendreceivestate = stopped;
+      detachInterrupt(RSSIIRQNR);      
+      TIMSK1=0; //Disable timer interrupt; Stop edge timer, stop overflow interrupt
+
+      sendnextcommand();
 
       // Did we succesfully get a buffer with pulses?
       if (send_pulsebuffer!=0)
@@ -718,6 +862,7 @@ void loop_queuedcommands()
         sendreceivestate = waitingforrssitrigger;
         attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
       }
+      
     }
   }
 }
@@ -728,7 +873,7 @@ void loop_receive()
   while (receivedpulsesCircularBuffer_readpos != receivedpulsesCircularBuffer_writepos)
   { // yes
     unsigned int duration = receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_readpos].duration;
-    unsigned short state = receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_readpos].state;
+    byte state = receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_readpos].state;
     
     if (++receivedpulsesCircularBuffer_readpos >= ReceivedPulsesCircularBufferSize) 
     {
@@ -747,27 +892,28 @@ void loop_receive()
     }
 #endif
 
-    //franelec.Decode( state , duration );
+    franelec.Decode( state , duration );
     ranex.Decode( state , duration );
+    elro.Decode( state , duration );
     kaku.Decode( state , duration );
     skytronic.Decode( state , duration );
     lacrosse.Decode( state , duration );
-    opelcarkey.Decode( state , duration );
+    siemens5wk4.Decode( state , duration );
     mcvoice.Decode( state , duration );
     houselink.Decode( state, duration );
+    x10.Decode( state, duration );
 //    unknown1.Decode( state, duration );
     elv.Decode( state, duration );
   }
 }
 
-
 void loop()
 {
   currenttime = millis();
+  
   unsigned long int delta = currenttime - last_check_scheduledcommands;
   if ( delta > UPDATEFREQUENCY_SCHEDULEDCOMMANDS )
   {
-    //Serial.print(".");
     loop_scheduledcommands();
     last_check_scheduledcommands = currenttime ;
   }
@@ -780,29 +926,26 @@ void loop()
   }
 
   loop_receive();
-  
- 
-  // Is data received via the serial-interface?
-  if (Serial.available()>0)
-  {
-    int b = Serial.read();
-  }
-
 }
 
 void setup()
 {  
+  // Initialize the serial-output
   Serial.begin(SerialBaudrate);
-  Serial.println("Setup");
-  Serial.print("CPU speed: ");Serial.print(F_CPU,DEC);Serial.println("Mhz"); 
+  
+  Serial.println("http://arduinoha.googlecode.com");  
+  Serial.print("CPU: ");Serial.print(F_CPU,DEC);Serial.println("Mhz"); 
+  
+  // Initialize the pins
   pinMode(DATAPIN, INPUT);
   pinMode(RSSIPIN, INPUT);
   pinMode(TXPIN, OUTPUT);
   pinMode(STATUSLEDPIN, OUTPUT);
 
-  last_check_scheduledcommands = millis();
-  last_check_queuedcommands = millis();
-  lastrssitrigger = millis();
+  currenttime = millis();
+  last_check_scheduledcommands = currenttime;
+  last_check_queuedcommands = currenttime;
+  lastrssitrigger = currenttime;
   
   sendreceivestate = waitingforrssitrigger;
   
@@ -812,14 +955,14 @@ void setup()
 
   attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
   
-/*  byte * bitbuffer;
-  byte bitbufferlength ;
-  skytronic.EncodeAllDevicesCommand( true , bitbuffer , bitbufferlength );
-  if (bitbuffer==0) return;
-  ScheduleCommand( 1.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
-  
-  skytronic.EncodeAllDevicesCommand( false , bitbuffer , bitbufferlength );
-  if (bitbuffer==0) return;
-  ScheduleCommand( 3.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);*/
+/*  byte * bitbuffer = 0;
+  byte bitbufferlength = 0;
+  kaku.EncodeDeviceCommand( 0 , true , bitbuffer , bitbufferlength );
+  ScheduleCommand( 1.0f , &kaku , bitbuffer , bitbufferlength , true, true);
+
+  bitbuffer = 0;
+  bitbufferlength = 0;
+  kaku.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+  ScheduleCommand( 5.0f , &kaku , bitbuffer , bitbufferlength , true, true);*/
 }
  
