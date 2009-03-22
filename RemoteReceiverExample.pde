@@ -17,11 +17,11 @@
 #include <ELVProtocol.h>
 
 #define ShowReceivedCommands
-#define ShowReceivedPulses
-#define ShowReceivedBitstream
+//#define ShowReceivedPulses
+//#define ShowReceivedBitstream
 #define ShowSendBitstream
-//#define Automate
-//#define ShowSendPulses
+#define Automate
+//#define ShowSendPulses // Beware! Enabling this debug-output may distort the output-timings!
 
 // Struct which is used to store received pulses in a buffer
 struct pulse 
@@ -31,6 +31,8 @@ struct pulse
 };
 
 unsigned long int currenttime = 0;
+unsigned long int syncedtime = 0;
+unsigned long int syncedcurrenttime = 0;
 
 enum SendReceiveStateEnum
 {
@@ -45,7 +47,6 @@ enum SendReceiveStateEnum
 };
 
 
-
 #define RSSIPIN 10      // The pin number of the RSSI signal
 #define DATAPIN 14      // The pin number of the data signal
 
@@ -55,12 +56,12 @@ enum SendReceiveStateEnum
 
 #define STATUSLEDPIN 0 // The pin number of the status-led
 
-#define UPDATEFREQUENCY_SCHEDULEDCOMMANDS 256l
-#define UPDATEFREQUENCY_QUEUEDCOMMANDS   256l
+#define UPDATEFREQUENCY_SCHEDULEDCOMMANDS 100l
+#define UPDATEFREQUENCY_QUEUEDCOMMANDS   100l
 
 // The number of milliseconds of silence after which sending of a queued command can commence. 
 // This duration should be longer than the silence in pulse-bursts (for example the duration terminator-silence of received commands).
-#define SEND_SILENCEDURATION 200l
+#define SEND_SILENCEDURATION 100l
 
 // This defines the number of received pulses which can be stored in the Circular buffer. 
 // This buffer is used to allow pulses to be received while previous pulses are still being processed.
@@ -89,6 +90,8 @@ volatile byte send_repeats = 0; // The number of times the bitstream still needs
 volatile byte sendpulsestate = LOW;
 
 byte statusledstate = LOW;
+
+unsigned int totallag = 0;
 
 unsigned long last_check_scheduledcommands = 0;
 unsigned long last_check_queuedcommands = 0;
@@ -199,6 +202,7 @@ ISR(TIMER1_OVF_vect)
     case sendingheader :
     case sendingbits :
     case sendingterminator :
+      // Flip output-signal bit (So: High->Low Low->High)
       sendpulsestate = !sendpulsestate;
       digitalWrite(TXPIN,sendpulsestate);
   
@@ -211,7 +215,7 @@ ISR(TIMER1_OVF_vect)
         {
           // Make sure the sended burst is ended with a low signal
           digitalWrite(TXPIN,LOW);
-        
+
           TIMSK1=0; //Disable timer interrupt; Stop edge timer, stop overflow interrupt
           sendreceivestate = waitingforrssitrigger;
           attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
@@ -223,9 +227,8 @@ ISR(TIMER1_OVF_vect)
       long duration = (65535 - send_pulsebuffer[ send_pulsepos ] + lag );
       if (duration > 65535) 
       {
-        //Serial.print("Lag:");
-        //Serial.print(lag,DEC);
         duration = 65535;
+        Serial.print("Lagged!");
       }
       TCNT1 = duration ;
   #ifdef ShowSendPulses
@@ -266,6 +269,7 @@ void rssiPinTriggered(void)
 void ShowBitstream(ProtocolBase * protocol, byte * bitbuffer, byte length)
 {
   #ifdef ShowReceivedBitstream
+    PrintTime(currenttime);
     PrintProtocolId(protocol);
     for (int bitpos=0;bitpos<length;bitpos++)
     {
@@ -312,6 +316,25 @@ void PrintProtocolId(ProtocolBase * protocol)
     Serial.print(protocol->GetId()); 
     Serial.print(": ");
 }
+void PrintTime(unsigned long pt)
+{
+    unsigned long time = pt - syncedcurrenttime;
+    unsigned long t = syncedtime + time;
+    unsigned long days = t / 86400000; t = t % 86400000;
+    unsigned long hours = t / 3600000; t = t % 3600000;
+    unsigned long mins = t / 60000 ; t = t % 60000;
+    unsigned long secs = t / 1000;
+    Serial.print("["); 
+    Serial.print(days, DEC);
+    Serial.print("-");
+    Serial.print(hours,DEC);
+    Serial.print(":");
+    Serial.print(mins,DEC);
+    Serial.print(":");
+    Serial.print(secs,DEC);
+    Serial.print("]");
+}
+
 
 void PrintBit(bool value)
 {
@@ -326,6 +349,7 @@ void PrintFloat(float value)
 void TemperatureReceived(ProtocolBase * protocol, byte device, float temperature)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);
     PrintProtocolId(protocol);
     Serial.print("T ");
     Serial.print(device,DEC);
@@ -338,6 +362,7 @@ void TemperatureReceived(ProtocolBase * protocol, byte device, float temperature
 void HygroReceived(ProtocolBase * protocol, byte device, float hygro)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print("H ");
     Serial.print(device,DEC);
@@ -350,6 +375,7 @@ void HygroReceived(ProtocolBase * protocol, byte device, float hygro)
 void RainReceived(ProtocolBase * protocol, byte device, int rain)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print("R ");
     Serial.print(device,DEC);
@@ -363,6 +389,7 @@ void RainReceived(ProtocolBase * protocol, byte device, int rain)
 void CommandReceived(ProtocolBase * protocol, byte device, bool lightoncommand)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(device,DEC);
     Serial.print(" ");
@@ -373,6 +400,7 @@ void CommandReceived(ProtocolBase * protocol, byte device, bool lightoncommand)
 void ElroCommandReceived(ProtocolBase * protocol, byte group, byte device, bool lightoncommand)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(group,DEC);Serial.print(" ");
     Serial.print(device,DEC);
@@ -385,6 +413,7 @@ void ElroCommandReceived(ProtocolBase * protocol, byte group, byte device, bool 
 void LockCommandReceived(ProtocolBase * protocol, bool lockcommand)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     if (lockcommand) Serial.println("Lock"); else Serial.println("Unlock");
   #endif
@@ -412,6 +441,7 @@ void LockCommandReceived(ProtocolBase * protocol, bool lockcommand)
 void DeviceTrippedReceived(ProtocolBase * protocol,byte device)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(device,DEC);
     Serial.println("Tripped"); 
@@ -421,6 +451,7 @@ void DeviceTrippedReceived(ProtocolBase * protocol,byte device)
 void HomeLinkDeviceTrippedReceived(ProtocolBase * protocol,byte group, byte device, bool state)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(group,DEC);Serial.print(" ");
     Serial.print(device,DEC);
@@ -431,14 +462,15 @@ void HomeLinkDeviceTrippedReceived(ProtocolBase * protocol,byte group, byte devi
 void X10CommandReceived(ProtocolBase * protocol, byte group, byte device, bool state)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(group,DEC);Serial.print(" ");
-    Serial.print(device,DEC);
+    Serial.print(device,DEC);Serial.print(" ");
     if (state) Serial.println("On"); else Serial.println("Off");
   #endif
   
   #ifdef Automate
-  if (device==4)
+  if (device==9)
   {
     // turn all lights in the living room on
     for (int dev=0;dev<5;dev++)
@@ -473,6 +505,87 @@ void X10CommandReceived(ProtocolBase * protocol, byte group, byte device, bool s
       } 
     }  
   }
+  
+  if (device==1)
+  {
+    // turn light in the hallway on
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 1 , true , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+  if (device==2)
+  {
+    // turn light in the hallway off
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 1 , false , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+  if (device==3)
+  {
+    // turn light front-porch on
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 0 , true , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+  if (device==4)
+  {
+    // turn light front-porch off
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+if (device==5)
+  {
+    // turn light hall 1st floor on
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 2 , true , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+  if (device==6)
+  {
+    // turn light hall 1st floor off
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    skytronic.EncodeDeviceCommand( 2 , false , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &skytronic , bitbuffer , bitbufferlength , true, true);
+  }
+
+if (device==7)
+  {
+    // turn light hall 2st floor on
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    kaku.EncodeDeviceCommand( 0 , true , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &kaku , bitbuffer , bitbufferlength , true, true);
+  }
+
+  if (device==8)
+  {
+    // turn light hall 2st floor off
+    byte * bitbuffer;
+    byte bitbufferlength ;
+    kaku.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
+    if (bitbuffer==0) return;
+    ScheduleCommand( 0.0f  , &kaku , bitbuffer , bitbufferlength , true, true);
+  }
+
 
   #endif
 }
@@ -481,6 +594,7 @@ void X10CommandReceived(ProtocolBase * protocol, byte group, byte device, bool s
 void BatteryEmptyReceived(ProtocolBase * protocol, byte device)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print(device,DEC);
     Serial.println("Battery");
@@ -491,6 +605,7 @@ void BatteryEmptyReceived(ProtocolBase * protocol, byte device)
 void TwoButtonsPressedReceived(ProtocolBase * protocol)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.println("Alarm");
   #endif
@@ -536,6 +651,7 @@ void TwoButtonsPressedReceived(ProtocolBase * protocol)
 void AllDevicesCommandReceived(ProtocolBase * protocol, bool lightoncommand)
 {
   #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
     PrintProtocolId(protocol);
     Serial.print("All ");
     if (lightoncommand) Serial.println("On"); else Serial.println("Off");
@@ -545,6 +661,7 @@ void AllDevicesCommandReceived(ProtocolBase * protocol, bool lightoncommand)
 void FranElecTrigger(ProtocolBase * protocol, byte device)
 {
     #ifdef ShowReceivedCommands
+    PrintTime(currenttime);    
     PrintProtocolId(protocol);
     Serial.println(device,DEC);
     #endif
@@ -677,6 +794,7 @@ void GetNextSendPulses()
     send_protocol->EncodeHeader( send_pulsebuffer , send_pulsebufferlength );
     sendreceivestate = sendingheader;
     
+    // If the returned buffer is null, this protocol doesn't have a header. 
     if (send_pulsebuffer==0)
     {
       send_bitpos = 0;
@@ -690,10 +808,15 @@ void GetNextSendPulses()
   {  
       sendreceivestate = sendingbits;      
       send_bitpos = 0;
+      
+      // Get the bit which will be send next
       bool bitvalue = send_protocol->GetBit( send_bitbuffer , send_bitbufferlength , send_bitpos );
 
       send_pulsepos = 0;
+      // Get a buffer for the bit which will be send next
       send_protocol->EncodeBit( send_pulsebuffer , send_pulsebufferlength , bitvalue );
+
+      // If the returned buffer is null, probably a memory error or incomplete protocol-code
       if (send_pulsebuffer==0) 
       {
         GetNextSendPulses();
@@ -709,6 +832,8 @@ void GetNextSendPulses()
         sendreceivestate = sendingterminator;
         send_pulsepos = 0;
         send_protocol->EncodeTerminator( send_pulsebuffer , send_pulsebufferlength );
+
+        // If the returned buffer is null, this protocol doesn't have a terminator.
         if (send_pulsebuffer==0)
         {
           GetNextSendPulses();
@@ -716,6 +841,7 @@ void GetNextSendPulses()
         }
         return;
       } 
+      // Get the bit which will be send next
       bool bitvalue = send_protocol->GetBit( send_bitbuffer , send_bitbufferlength , send_bitpos );
 
       send_pulsepos = 0;
@@ -753,19 +879,35 @@ int IsCommandInCollection( protocolcommand* commands, byte commandscount , Proto
 
 void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, byte bitbufferlength , bool overwritewhenlater, bool overwritewhenearlier)
 {
-  int idx=IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, protocol, bitbuffer,  bitbufferlength);
+  int idx=IsCommandInCollection( QueuedCommands, QueuedCommandsCount, protocol, bitbuffer,  bitbufferlength);
+  if (idx!=-1) 
+  {
+    PrintTime(currenttime);
+    Serial.println("Command not scheduled. Already queued for send.");
+    return;
+  }
+  
+  idx=IsCommandInCollection( ScheduledCommands, ScheduledCommandsCount, protocol, bitbuffer,  bitbufferlength);
 
   unsigned long scheduledtime = currenttime ;
   scheduledtime += (seconds * 1000l) ;
   
   // Is this Command aleady scheduled
   if (idx!=-1)
-  { // Yes
-    protocolcommand sc = ScheduledCommands[idx];
-    if ( (overwritewhenlater && scheduledtime > sc.scheduledtime) || (overwritewhenearlier && scheduledtime < sc.scheduledtime) )
+  { // Yes    
+    PrintTime(currenttime);
+    Serial.print(" Already scheduled.");
+    protocolcommand* sc = &(ScheduledCommands[idx]);
+    if ( overwritewhenlater && (scheduledtime > sc->scheduledtime)) 
     {
-      sc.scheduledtime = scheduledtime;
-    }
+      Serial.print(" Defferring to"); PrintTime(scheduledtime);Serial.println("");
+      sc->scheduledtime = scheduledtime;
+    } else if (overwritewhenearlier && (scheduledtime < sc->scheduledtime))
+    {
+      Serial.print(" Earlier to"); PrintTime(scheduledtime);Serial.println("");
+      sc->scheduledtime = scheduledtime;
+    } 
+    
     free(bitbuffer);
     return;
   }
@@ -778,6 +920,8 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
   c->bitbufferlength = bitbufferlength;
   dynamicarrayhelper.AddToArray((void *&)ScheduledCommands, c , ScheduledCommandsCount , sizeof(protocolcommand) );
   free(c);
+  PrintTime(currenttime);
+  Serial.println(" Item scheduled");
 }
 
 
@@ -791,6 +935,9 @@ void loop_scheduledcommands()
     {
       if (currenttime >= ScheduledCommands[idx].scheduledtime )
       {
+        PrintTime(currenttime);
+        Serial.println(" Item queued for sending");
+
         // Queue command for sending
         dynamicarrayhelper.AddToArray( (void *&)QueuedCommands , &ScheduledCommands[idx] , QueuedCommandsCount , sizeof(protocolcommand) );
 
@@ -814,6 +961,7 @@ void sendnextcommand()
       dynamicarrayhelper.RemoveFromArray( (void *&) QueuedCommands , 0 , QueuedCommandsCount, sizeof(protocolcommand) );
     
       #ifdef ShowSendBitstream
+        PrintTime(currenttime);
         Serial.print (send_protocol->GetId());
         Serial.print(" Sending: ");
         for (int bitpos=0;bitpos<send_protocol->GetBitstreamLength();bitpos++)
@@ -834,8 +982,9 @@ void loop_queuedcommands()
     // Calculate the number of milliseconds after the last RSSI trigger
     unsigned long delta = currenttime - lastrssitrigger;
 
+    // Are all receivedpulses processed and
     // Are we waiting for an rssi-trigger or listening for pulses and the duration have passed?
-    if ( (sendreceivestate == waitingforrssitrigger) || (sendreceivestate==listeningforpulses && delta > SEND_SILENCEDURATION) )
+    if ( receivedpulsesCircularBuffer_readpos == receivedpulsesCircularBuffer_writepos && ((sendreceivestate == waitingforrssitrigger) || (sendreceivestate==listeningforpulses && delta > SEND_SILENCEDURATION)) )
     { // Yes
       sendreceivestate = stopped;
       detachInterrupt(RSSIIRQNR);      
@@ -852,11 +1001,9 @@ void loop_queuedcommands()
 #ifdef ShowSendPulses
         ShowSendPulse(duration);
 #endif
-        
         TCNT1 = ((unsigned int) 65535)- duration;        
         digitalWrite(TXPIN, sendpulsestate);
-
-        TIMSK1= 1<<TOIE1 /* enable timer overflow interrupt */;     
+        TIMSK1= 1<<TOIE1 /* enable timer overflow interrupt */;
       } else
       { // No
         sendreceivestate = waitingforrssitrigger;
@@ -943,6 +1090,8 @@ void setup()
   pinMode(STATUSLEDPIN, OUTPUT);
 
   currenttime = millis();
+  syncedtime = 0;
+  syncedcurrenttime = currenttime;
   last_check_scheduledcommands = currenttime;
   last_check_queuedcommands = currenttime;
   lastrssitrigger = currenttime;
@@ -954,15 +1103,5 @@ void setup()
   TIMSK1 = 0<<ICIE1 /* Timer/Counter 1, Input Capture Interrupt disabled */ ;  
 
   attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
-  
-/*  byte * bitbuffer = 0;
-  byte bitbufferlength = 0;
-  kaku.EncodeDeviceCommand( 0 , true , bitbuffer , bitbufferlength );
-  ScheduleCommand( 1.0f , &kaku , bitbuffer , bitbufferlength , true, true);
-
-  bitbuffer = 0;
-  bitbufferlength = 0;
-  kaku.EncodeDeviceCommand( 0 , false , bitbuffer , bitbufferlength );
-  ScheduleCommand( 5.0f , &kaku , bitbuffer , bitbufferlength , true, true);*/
 }
  
