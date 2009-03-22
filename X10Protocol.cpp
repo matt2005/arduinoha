@@ -15,17 +15,18 @@ void X10Protocol::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 	if ( decoder_bitpos==GetBitstreamLength() )
 	{
 		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
-		
+		FlipBits(decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos);
 		byte device = 0;
 		
-		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 20)? 1:0) ;
-		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 21)? 2:0) ;
-		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 18)? 4:0) ;		
-		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 6)? 8 :0) ;
+		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 27)? 1:0) ;
+		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 28)? 2:0) ;
+		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 25)? 4:0) ;		
+		device |= (GetBit(decoder_bitbuffer, decoder_bitbufferlength, 26)? 8:0) ;
 		
 		byte group = 0;
 		
-		bool state = GetBit(decoder_bitbuffer, decoder_bitbufferlength, 19);
+		//bool state = GetBit(decoder_bitbuffer, decoder_bitbufferlength, 19);
+		bool state =false;
 		if (_DeviceTrippedEvent!=0) _DeviceTrippedEvent(this, group, device, state );
 	}
 }

@@ -4,12 +4,13 @@
 //[  13]   44 [  13]   46 [  39]   12 [  45]   13 [  46]   12 [  43]   15 [  44]   14 [  41]   21 [   7]   47 [  11]   47 [  10]   47 [  12]   45 [  13]   44 [  11]   50 [  11]   43 [  14]   43 [  12]   48 [  12]   43 [  13]   44 [  15]   46 [  11]   43 [  11]   46 [  12]   46 [  12]   45 [  12]  451 
 //[   9]   45 [  13]   44 [  42]   14 [  46]   12 [  41]   18 [  40]   17 [  41]   17 [  39]   18 [  11]   47 [  10]   48 [  12]   45 [  10]   48 [  10]   48 [   9]   48 [  12]   45 [  11]   45 [  12]   50 [   7]   49 [  11]   44 [  10]   47 [  11]   46 [  11]   51 [   7]   46 [  16]   42 [  11]  448
 //[  12]   45 [  12]   45 [  45]   12 [  44]   18 [  37]   18 [  42]   15 [  42]   17 [  38]   18 [  11]   47 [  10]   51 [  11]   43 [  11]   46 [  11]   47 [  10]   47 [  11]   47 [  13]   44 [  12]   45 [  12]   46 [  11]   46 [  12]   46 [  11]   50 [   7]   47 [  11]   47 [  10]   48 [  10]  449
+// The light outlets are quite resentive to overdriving the timerfrequency. They responded correctly even though i've upped the frequency by 1000herz..
 RanexProtocol::RanexProtocol(
 	char * id,
 	double TimerFrequency ,
 	void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer , byte length ),
 	void (*DeviceCommandReceivedEvent)(ProtocolBase * protocol , byte device , bool turnoncommand)
-	) : ConstantLengthPulseCycleProtocolBase(id, BitsstreamReceivedEvent , 24 , 5 , (TimerFrequency / 4369.993f) , 1 , 3 )
+	) : ConstantLengthPulseCycleProtocolBase(id, BitsstreamReceivedEvent , 24 , 4 , (TimerFrequency / 4369.993f ) , 1 , 3 )
 {	
 	_DeviceCommandReceivedEvent = DeviceCommandReceivedEvent;
 }
