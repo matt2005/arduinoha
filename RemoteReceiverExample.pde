@@ -9,6 +9,7 @@
 #include <ElroProtocol.h>
 #include <FranElecProtocol.h>
 #include <LaCrosseProtocol.h>
+#include <LaCrosseProtocol2.h>
 #include <SkytronicProtocol.h>
 #include <Siemens5WK4Protocol.h>
 #include <McVoiceProtocol.h>
@@ -16,10 +17,11 @@
 #include <X10Protocol.h>
 #include <ELVProtocol.h>
 
-#define ShowReceivedCommands
+#define ShowErrors
+//#define ShowReceivedCommands
 //#define ShowReceivedPulses
 //#define ShowReceivedBitstream
-#define ShowSendBitstream
+//#define ShowSendBitstream
 #define Automate
 //#define ShowSendPulses // Beware! Enabling this debug-output may distort the output-timings!
 
@@ -61,7 +63,7 @@ enum SendReceiveStateEnum
 
 // The number of milliseconds of silence after which sending of a queued command can commence. 
 // This duration should be longer than the silence in pulse-bursts (for example the duration terminator-silence of received commands).
-#define SEND_SILENCEDURATION 100l
+#define SEND_SILENCEDURATION 400l
 
 // This defines the number of received pulses which can be stored in the Circular buffer. 
 // This buffer is used to allow pulses to be received while previous pulses are still being processed.
@@ -73,7 +75,7 @@ enum SendReceiveStateEnum
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
 // A reference to the received-pulses-CircularBuffer.
-volatile pulse receivedpulsesCircularBuffer[ReceivedPulsesCircularBufferSize];
+pulse receivedpulsesCircularBuffer[ReceivedPulsesCircularBufferSize];
 
 volatile unsigned short receivedpulsesCircularBuffer_readpos = 0; // The index number of the first pulse which will be read from the buffer.
 volatile unsigned short receivedpulsesCircularBuffer_writepos = 0; // The index number of the position which will be used to store the next received pulse.
@@ -90,8 +92,6 @@ volatile byte send_repeats = 0; // The number of times the bitstream still needs
 volatile byte sendpulsestate = LOW;
 
 byte statusledstate = LOW;
-
-unsigned int totallag = 0;
 
 unsigned long last_check_scheduledcommands = 0;
 unsigned long last_check_queuedcommands = 0;
@@ -114,8 +114,8 @@ DynamicArrayHelper dynamicarrayhelper;
 // Debug Output functions
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-void ShowSendPulse(long duration)
+// This method will print the duration of a pulse
+void ShowSendPulse(unsigned int duration)
 {
   #ifdef ShowSendPulses
     if (sendpulsestate) Serial.print("("); else Serial.print(" ");
@@ -135,24 +135,27 @@ void ShowSendPulse(long duration)
 // ISR
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 
+// This function will store a received pulse in the Circular buffer
 void StoreReceivedPulseInBuffer(unsigned int duration, byte state)
 {
     // Store pulse in receivedpulsesCircularBuffer
-    receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_writepos].state = state;
-
-    receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_writepos].duration = duration;
-    
-    // Wrap buffer
+    pulse * p = &(receivedpulsesCircularBuffer[receivedpulsesCircularBuffer_writepos]);
+    p->state = state;
+    p->duration = duration;
+   
+    // When at the end of the buffer start from beginning of buffer
     if (++receivedpulsesCircularBuffer_writepos >= ReceivedPulsesCircularBufferSize) 
     {
       receivedpulsesCircularBuffer_writepos = 0;
     }
-    
+
+#ifdef ShowErrors    
     // Check overflow
     if (receivedpulsesCircularBuffer_writepos==receivedpulsesCircularBuffer_readpos)
     { // Overflow circular buffer
       Serial.print("Overflow");
     }
+#endif
 }
 
 // This Interrupt Service Routine will be called upon each change of data on DATAPIN when listeningforpulses.
@@ -179,7 +182,8 @@ ISR(TIMER1_CAPT_vect)
         curstate = HIGH;
     } 
 
-    unsigned int time = (newTime>=prevTime? (newTime - prevTime) : ((!prevTime) + 1) + newTime);    
+    // Calculate the duration of the pulse
+    unsigned int time = (newTime>=prevTime ? (newTime - prevTime) : ((!prevTime) + 1) + newTime);    
     StoreReceivedPulseInBuffer(time, !curstate);
   } 
   
@@ -192,12 +196,15 @@ ISR(TIMER1_OVF_vect)
   switch (sendreceivestate)
   {
     case listeningforpulses :
+      TIMSK1 = 0 ; // Disable timer-overflow interrupt
+      digitalWrite(STATUSLEDPIN, LOW);
+      
       // Add some pulses to flush decoders
       StoreReceivedPulseInBuffer(65535-prevTime,HIGH);
       StoreReceivedPulseInBuffer(65535-prevTime,LOW);
+
+      // Timer has overflowed, start waiting again
       sendreceivestate=waitingforrssitrigger;
-      digitalWrite(STATUSLEDPIN, LOW);
-      TIMSK1 = 0 ; // Disable timer-overflow interrupt
       break;
     case sendingheader :
     case sendingbits :
@@ -225,11 +232,13 @@ ISR(TIMER1_OVF_vect)
 
       unsigned int lag = TCNT1;
       long duration = (65535 - send_pulsebuffer[ send_pulsepos ] + lag );
+#ifdef ShowErrors      
       if (duration > 65535) 
       {
         duration = 65535;
         Serial.print("Lagged!");
       }
+#endif      
       TCNT1 = duration ;
   #ifdef ShowSendPulses
       ShowSendPulse(send_pulsebuffer[ send_pulsepos ]);
@@ -286,6 +295,7 @@ char * Kaku433ID = "Kaku433";
 char * FranElec433ID = "FE433";
 char * Skytronic433ID = "ST433";
 char * LaCrosse433ID = "LC433";
+char * LaCrosse2433ID = "LC2433";
 char * Siemens5WK4433ID = "OCK433";
 char * McVoice433ID = "MCV433";
 char * HouseLink433ID = "HL433";
@@ -301,6 +311,7 @@ KlikAanKlikUitProtocol kaku = KlikAanKlikUitProtocol( Kaku433ID, TIMERFREQUENCY 
 FranElecProtocol franelec = FranElecProtocol( FranElec433ID, TIMERFREQUENCY , ShowBitstream, FranElecTrigger, FranElecTrigger);
 SkytronicProtocol skytronic = SkytronicProtocol( Skytronic433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived, AllDevicesCommandReceived);
 LaCrosseProtocol lacrosse = LaCrosseProtocol( LaCrosse433ID, TIMERFREQUENCY , ShowBitstream, TemperatureReceived, HygroReceived, RainReceived);
+LaCrosseProtocol2 lacrosse2 = LaCrosseProtocol2( LaCrosse2433ID, TIMERFREQUENCY , ShowBitstream);
 Siemens5WK4Protocol siemens5wk4 = Siemens5WK4Protocol( Siemens5WK4433ID , TIMERFREQUENCY , ShowBitstream, LockCommandReceived , TwoButtonsPressedReceived);
 McVoiceProtocol mcvoice = McVoiceProtocol( McVoice433ID, TIMERFREQUENCY , ShowBitstream , DeviceTrippedReceived , BatteryEmptyReceived );
 HouseLinkProtocol houselink = HouseLinkProtocol( HouseLink433ID, TIMERFREQUENCY , ShowBitstream , HomeLinkDeviceTrippedReceived  );
@@ -338,7 +349,7 @@ void PrintTime(unsigned long pt)
 
 void PrintBit(bool value)
 {
-  if (value) Serial.print("1"); else Serial.print("0");
+  Serial.print(value?"1":"0");
 }
 
 void PrintFloat(float value)
@@ -684,7 +695,7 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
       } else
       {
         // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
-        ScheduleCommand( 300.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+        ScheduleCommand( 120.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       }
     }
     
@@ -705,7 +716,7 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
       } else
       {
         // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.        
-        ScheduleCommand( 300.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
+        ScheduleCommand( 120.0f , &skytronic , bitbuffer , bitbufferlength , true, true);
       }
     }
 
@@ -726,7 +737,7 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
       } else
       {
         // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
-        ScheduleCommand( 300.0f , &kaku , bitbuffer , bitbufferlength , true, true);
+        ScheduleCommand( 120.0f , &kaku , bitbuffer , bitbufferlength , true, true);
       }
     }
     
@@ -747,7 +758,7 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
       } else
       {
         // Voordat het licht weer uitgeschakeld is, wordt weer beweging geconstateerd. Hou dan het licht langer aan.
-        ScheduleCommand( 300.0f , &kaku , bitbuffer , bitbufferlength , true, true);
+        ScheduleCommand( 120.0f , &kaku , bitbuffer , bitbufferlength , true, true);
       }
     }
     #endif
@@ -883,7 +894,7 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
   if (idx!=-1) 
   {
     PrintTime(currenttime);
-    Serial.println("Command not scheduled. Already queued for send.");
+    Serial.println(" Command not scheduled. Already queued for send.");
     return;
   }
   
@@ -900,11 +911,11 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
     protocolcommand* sc = &(ScheduledCommands[idx]);
     if ( overwritewhenlater && (scheduledtime > sc->scheduledtime)) 
     {
-      Serial.print(" Defferring to"); PrintTime(scheduledtime);Serial.println("");
+      Serial.print(" Postponed to"); PrintTime(scheduledtime);Serial.println("");
       sc->scheduledtime = scheduledtime;
     } else if (overwritewhenearlier && (scheduledtime < sc->scheduledtime))
     {
-      Serial.print(" Earlier to"); PrintTime(scheduledtime);Serial.println("");
+      Serial.print(" Advanced to"); PrintTime(scheduledtime);Serial.println("");
       sc->scheduledtime = scheduledtime;
     } 
     
@@ -967,9 +978,9 @@ void sendnextcommand()
         for (int bitpos=0;bitpos<send_protocol->GetBitstreamLength();bitpos++)
         {
           int bytepos = bitpos >> 3;
-          if ((send_bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0) PrintBit(true); else PrintBit(false);
+          PrintBit((send_bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0) ;
         }
-        PrintNewLine();
+        PrintNewLine();        
       #endif
       GetNextSendPulses();
   }
@@ -1045,6 +1056,7 @@ void loop_receive()
     kaku.Decode( state , duration );
     skytronic.Decode( state , duration );
     lacrosse.Decode( state , duration );
+    lacrosse2.Decode( state , duration );
     siemens5wk4.Decode( state , duration );
     mcvoice.Decode( state , duration );
     houselink.Decode( state, duration );
