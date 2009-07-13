@@ -32,6 +32,11 @@ ProtocolBase::ProtocolBase(
 	ResetDecoder();
 }
 
+char * ProtocolBase::GetId()
+{
+	return _id;
+}
+
 // This method return the length of the normal bitstream
 int ProtocolBase::GetBitstreamLength()
 {
@@ -57,7 +62,23 @@ void ProtocolBase::ResetDecoder(void)
   decoder_bitbufferlength = 0;
 }
 
+void ProtocolBase::EncodeHeader(unsigned int *& pulsebuffer, byte & pulsebufferlength)
+{
+	pulsebuffer = 0;
+	pulsebufferlength = 0;
+}
 
+void ProtocolBase::EncodeBit(unsigned int *& pulsebuffer, byte & pulsebufferlength, bool bitvalue)
+{
+	pulsebuffer = 0;
+	pulsebufferlength = 0;
+}
+
+void ProtocolBase::EncodeTerminator(unsigned int *& pulsebuffer, byte & pulsebufferlength)
+{
+	pulsebuffer = 0;
+	pulsebufferlength = 0;
+}		
 
 unsigned int ProtocolBase::CalculateDeviation(unsigned int duration , unsigned int expectedduration)
 {

@@ -1,3 +1,12 @@
+// ToDo's:
+// * Make the prescaler smaller to try to get more accurate timings
+// * Protocols: http://bertrik.sikken.nl/433mhz/index.html (Haehnel remote shutter trigger HW 433 N80, Cactus v2 remote flash)
+// * Protocols: http://jon.oxer.com.au/blog/id/339
+// * Protocols: http://www.practicalarduino.com/projects/easy/appliance-remote-control
+// * Protocols: http://members.upc.nl/m.beukelaar/Crestaprotocol.pdf 
+// * Protocols: http://www.tinaja.com/glib/muse151.pdf
+// * Protocols: http://www.navitron.org.uk/forum/index.php?topic=1830.15
+
 // Base and utility includes
 #include <ProtocolBase.h>
 #include <ProtocolCommand.h>
@@ -18,12 +27,17 @@
 #include <ELVProtocol.h>
 
 #define ShowErrors
-//#define ShowReceivedCommands
-//#define ShowReceivedPulses
-//#define ShowReceivedBitstream
+#define ShowReceivedCommands
+//#define ShowReceivedPulses // Beware! Enabling this debug-output may distort the timings!
+#define ShowReceivedBitstream
 //#define ShowSendBitstream
-#define Automate
-//#define ShowSendPulses // Beware! Enabling this debug-output may distort the output-timings!
+//#define Automate
+//#define ShowSendPulses // Beware! Enabling this debug-output may distort the timings!
+
+// If the receiver-module has a RSSI-output-pin, this pin can be wired-up to only process strongly received signals.
+// If the receiver-module does not have a RSSI-output-pin, the data-output-pin can be used as a trigger on every signal (even noise). 
+unsigned int RSSIPIN    = 10; // The pin number of the RSSI signal (Sanguino pins: 10, 11, 2)
+unsigned int RSSIIRQNR  = 0;  // The irq number of the RSSI pin (Saguino pin=irqnr: 10=0 , 11=1, 2=2)
 
 // Struct which is used to store received pulses in a buffer
 struct pulse 
@@ -49,14 +63,12 @@ enum SendReceiveStateEnum
 };
 
 
-#define RSSIPIN 10      // The pin number of the RSSI signal
-#define DATAPIN 14      // The pin number of the data signal
-
-#define RSSIIRQNR 0    // The irq number of the RSSI pin
+// The datapin defines the pin which is wired-up to the Data-output-pin of the receiver-module.
+unsigned int DATAPIN = 14;      // The pin number of the data signal
 
 #define TXPIN 3       // The pin number of the transmission signal
 
-#define STATUSLEDPIN 0 // The pin number of the status-led
+unsigned int STATUSLEDPIN = 0; // The pin number of the status-led (Sanguino: 0)
 
 #define UPDATEFREQUENCY_SCHEDULEDCOMMANDS 100l
 #define UPDATEFREQUENCY_QUEUEDCOMMANDS   100l
@@ -64,6 +76,8 @@ enum SendReceiveStateEnum
 // The number of milliseconds of silence after which sending of a queued command can commence. 
 // This duration should be longer than the silence in pulse-bursts (for example the duration terminator-silence of received commands).
 #define SEND_SILENCEDURATION 400l
+
+#define PRESCALER256
 
 // This defines the number of received pulses which can be stored in the Circular buffer. 
 // This buffer is used to allow pulses to be received while previous pulses are still being processed.
@@ -74,11 +88,16 @@ enum SendReceiveStateEnum
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
-// A reference to the received-pulses-CircularBuffer.
+// The timings of the pulses received from the receiver-module will be stored in this Circul/Ring-buffer. The reason for this is that these pulses can be "offline" processed.
 pulse receivedpulsesCircularBuffer[ReceivedPulsesCircularBufferSize];
 
-volatile unsigned short receivedpulsesCircularBuffer_readpos = 0; // The index number of the first pulse which will be read from the buffer.
-volatile unsigned short receivedpulsesCircularBuffer_writepos = 0; // The index number of the position which will be used to store the next received pulse.
+// The index number of the first pulse which will be read from the buffer.
+volatile unsigned short receivedpulsesCircularBuffer_readpos = 0; 
+
+// The index number of the position which will be used to store the next received pulse.
+volatile unsigned short receivedpulsesCircularBuffer_writepos = 0; 
+
+
 volatile unsigned int prevTime; // ICR1 (timetick) value  of the start of the previous Pulse
 
 ProtocolBase *send_protocol = 0; // The instance of the protocol which is being sent
@@ -114,19 +133,88 @@ DynamicArrayHelper dynamicarrayhelper;
 // Debug Output functions
 // --------------------------------------------------------------------------------------------------------------------------------------------------
 
-// This method will print the duration of a pulse
-void ShowSendPulse(unsigned int duration)
+// This method will print the duration of a pulse to the Serial
+// It will print data formatted to be easy readable for debug purposes
+void ShowPulse(bool state, unsigned int duration)
 {
-  #ifdef ShowSendPulses
-    if (sendpulsestate) Serial.print("("); else Serial.print(" ");
-    if (duration<10) Serial.print("   "); else if (duration<100) Serial.print("  "); else if (duration<1000) Serial.print(" ");
+    if (state) Serial.print("["); else Serial.print(" ");
+    
+    if (duration < 10) 
+      Serial.print("   "); 
+    else 
+      if (duration < 100) Serial.print("  "); 
+    else 
+      if (duration < 1000) Serial.print(" ");
+      
     Serial.print(duration,DEC); 
-    if (sendpulsestate) Serial.print(")"); else Serial.print(" ");
+    
+    if (state) 
+      Serial.print("]"); 
+    else
+      Serial.print(" ");
+    
     if (showidx++>=21) 
     {
       PrintNewLine();
       showidx = 0;
     }
+}
+
+void PrintNewLine()
+{
+    Serial.println("");
+}
+
+void PrintProtocolId(ProtocolBase * protocol)
+{
+    Serial.print(protocol->GetId()); 
+    Serial.print(": ");
+}
+
+void PrintTime(unsigned long pt)
+{
+    unsigned long time = pt - syncedcurrenttime;
+    unsigned long t = syncedtime + time;
+    unsigned long days = t / 86400000; t = t % 86400000;
+    unsigned long hours = t / 3600000; t = t % 3600000;
+    unsigned long mins = t / 60000 ; t = t % 60000;
+    unsigned long secs = t / 1000;
+    Serial.print("["); 
+    if (days<10) Serial.print("0");    
+    Serial.print(days, DEC);
+    Serial.print("-");
+    if (hours<10) Serial.print("0");    
+    Serial.print(hours,DEC);
+    Serial.print(":");
+    if (mins<10) Serial.print("0");
+    Serial.print(mins,DEC);
+    Serial.print(":");
+    if (secs<10) Serial.print("0");
+    Serial.print(secs,DEC);
+    Serial.print("]");
+}
+
+void PrintBit(bool value)
+{
+  Serial.print(value?"1":"0");
+}
+
+void PrintFloat(float value)
+{
+  int deg=(int)fabs(value); Serial.print(deg,DEC);Serial.print(".");int frac=(int)(fabs(value*10.0f)) % 10; Serial.print(frac,DEC);
+}
+
+void ShowBitstream(ProtocolBase * protocol, byte * bitbuffer, byte length)
+{
+  #ifdef ShowReceivedBitstream
+    PrintTime(currenttime);
+    PrintProtocolId(protocol);
+    for (int bitpos=0;bitpos<length;bitpos++)
+    {
+      int bytepos = bitpos >> 3;
+      PrintBit( (bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0 ) ;
+    }
+    PrintNewLine();
   #endif
 }
 
@@ -149,13 +237,13 @@ void StoreReceivedPulseInBuffer(unsigned int duration, byte state)
       receivedpulsesCircularBuffer_writepos = 0;
     }
 
-#ifdef ShowErrors    
-    // Check overflow
-    if (receivedpulsesCircularBuffer_writepos==receivedpulsesCircularBuffer_readpos)
-    { // Overflow circular buffer
-      Serial.print("Overflow");
-    }
-#endif
+    #ifdef ShowErrors    
+      // Check overflow
+      if (receivedpulsesCircularBuffer_writepos==receivedpulsesCircularBuffer_readpos)
+      { // Overflow circular buffer
+        Serial.print("Overflow");
+      }
+    #endif
 }
 
 // This Interrupt Service Routine will be called upon each change of data on DATAPIN when listeningforpulses.
@@ -164,6 +252,7 @@ ISR(TIMER1_CAPT_vect)
   // Store the value of the timer
   unsigned int newTime = TCNT1 ; //ICR1; 
 
+  // We are only interested in pulses when "listeningforpulses"
   if (sendreceivestate==listeningforpulses) 
   {
     byte curstate ;
@@ -183,21 +272,30 @@ ISR(TIMER1_CAPT_vect)
     } 
 
     // Calculate the duration of the pulse
-    unsigned int time = (newTime>=prevTime ? (newTime - prevTime) : ((!prevTime) + 1) + newTime);    
+    unsigned int time = (newTime - prevTime);
+    
+    // Did the timer overflow?
+    if (newTime<prevTime)
+    {
+      // Calculate the duration of the pulse taking into account the overflowing of the timer
+      time =  ((!prevTime) + 1) + newTime;    
+    }
+
+    // Store the duration of the received pulse    
     StoreReceivedPulseInBuffer(time, !curstate);
-  } 
+  } ;
   
   prevTime = newTime;  
 }
 
-// This Interrupt Service Routine will be called upon a timer-overflow.
+// This Interrupt Service Routine will be called upon an timer-overflow. This will happen every few seconds when receiving. It will also happen for each sent pulse after the duration.
 ISR(TIMER1_OVF_vect) 
 {
   switch (sendreceivestate)
   {
     case listeningforpulses :
-      TIMSK1 = 0 ; // Disable timer-overflow interrupt
-      digitalWrite(STATUSLEDPIN, LOW);
+      // Disable timer-overflow interrupt
+      TIMSK1 = 0 ;
       
       // Add some pulses to flush decoders
       StoreReceivedPulseInBuffer(65535-prevTime,HIGH);
@@ -206,6 +304,7 @@ ISR(TIMER1_OVF_vect)
       // Timer has overflowed, start waiting again
       sendreceivestate=waitingforrssitrigger;
       break;
+      
     case sendingheader :
     case sendingbits :
     case sendingterminator :
@@ -213,36 +312,54 @@ ISR(TIMER1_OVF_vect)
       sendpulsestate = !sendpulsestate;
       digitalWrite(TXPIN,sendpulsestate);
   
+      // Shift to the next pulse that will be send
       send_pulsepos++;
+      
+      // Is there still a pulse left to be send in this buffer?
       if ( send_pulsepos >= send_pulsebufferlength)
       {
+        // Get next pulses in the buffer
         GetNextSendPulses();
         
+        // There is nothing more to be sent, we are finished
         if (sendreceivestate==sendingfinished)
         {
           // Make sure the sended burst is ended with a low signal
           digitalWrite(TXPIN,LOW);
 
-          TIMSK1=0; //Disable timer interrupt; Stop edge timer, stop overflow interrupt
+          //Disable timer interrupt; Stop edge timer, stop overflow interrupt
+          TIMSK1=0; 
+          
           sendreceivestate = waitingforrssitrigger;
+          
           attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
-          return;
+          
+          return; // Leave this function
         }
       }
 
+      // Fetch the time this processing has taken.
       unsigned int lag = TCNT1;
-      long duration = (65535 - send_pulsebuffer[ send_pulsepos ] + lag );
-#ifdef ShowErrors      
-      if (duration > 65535) 
-      {
+
+      // Calculate the duration of the next pulse taking into account the lag
+      long duration = (65536 - send_pulsebuffer[ send_pulsepos ] + lag );
+      
+      // Does the calculated destination timer value overflow? (Lab>=pulseduration)
+      if (duration>65535) 
+      { // Yes
+        // Hmmm. We can't travell through time, but we can shorten our delay as much as possible.
         duration = 65535;
-        Serial.print("Lagged!");
+        #ifdef ShowErrors      
+          Serial.print("Lagged!");
+        #endif      
       }
-#endif      
-      TCNT1 = duration ;
-  #ifdef ShowSendPulses
-      ShowSendPulse(send_pulsebuffer[ send_pulsepos ]);
-  #endif
+      // Set this register so the next Timer-overflow will happen at desired duration
+      TCNT1 = duration ;    
+
+      #ifdef ShowSendPulses
+        ShowSendPulse(send_pulsebuffer[ send_pulsepos ]);
+      #endif
+      
       lastrssitrigger = currenttime;
       break;
   }
@@ -257,7 +374,6 @@ void rssiPinTriggered(void)
 {
   if (sendreceivestate==waitingforrssitrigger)
   {
-    digitalWrite(STATUSLEDPIN, HIGH);
     sendreceivestate = listeningforpulses;
     prevTime = 0;//ICR1;
      // reset the counter as close as possible when the rssi pin is triggered (to acheive accuracy)
@@ -275,19 +391,6 @@ void rssiPinTriggered(void)
   lastrssitrigger = currenttime;  
 }
 
-void ShowBitstream(ProtocolBase * protocol, byte * bitbuffer, byte length)
-{
-  #ifdef ShowReceivedBitstream
-    PrintTime(currenttime);
-    PrintProtocolId(protocol);
-    for (int bitpos=0;bitpos<length;bitpos++)
-    {
-      int bytepos = bitpos >> 3;
-      if ((bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0) PrintBit(true); else PrintBit(false);
-    }
-    PrintNewLine();
-  #endif
-}
 
 char * Ranex433ID = "Ranex433";
 char * Elro433ID = "Elro433";
@@ -303,59 +406,27 @@ char * X10433ID = "X10433";
 char * Unknown1433ID = "UK1433";
 char * ELV868ID = "ELV868" ;
 
-double TIMERFREQUENCY =  (F_CPU / 256.0f);
+// Calculate the duration of one timertick (CPUSpeed / Prescalerfactor)
+#ifdef PRESCALER256
+   double TIMERFREQUENCY =  (F_CPU / 256.0f);
+#else
+   double TIMERFREQUENCY =  (F_CPU / 64.0f);
+#endif
 
+// Initialize the various protocol decoders
 RanexProtocol ranex = RanexProtocol( Ranex433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived);
 ElroProtocol elro = ElroProtocol( Elro433ID, TIMERFREQUENCY , ShowBitstream, ElroCommandReceived);
 KlikAanKlikUitProtocol kaku = KlikAanKlikUitProtocol( Kaku433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived);
 FranElecProtocol franelec = FranElecProtocol( FranElec433ID, TIMERFREQUENCY , ShowBitstream, FranElecTrigger, FranElecTrigger);
 SkytronicProtocol skytronic = SkytronicProtocol( Skytronic433ID, TIMERFREQUENCY , ShowBitstream, CommandReceived, AllDevicesCommandReceived);
 LaCrosseProtocol lacrosse = LaCrosseProtocol( LaCrosse433ID, TIMERFREQUENCY , ShowBitstream, TemperatureReceived, HygroReceived, RainReceived);
-LaCrosseProtocol2 lacrosse2 = LaCrosseProtocol2( LaCrosse2433ID, TIMERFREQUENCY , ShowBitstream);
+LaCrosseProtocol2 lacrosse2 = LaCrosseProtocol2( LaCrosse2433ID, TIMERFREQUENCY , ShowBitstream, RainReceived, WindReceived);
 Siemens5WK4Protocol siemens5wk4 = Siemens5WK4Protocol( Siemens5WK4433ID , TIMERFREQUENCY , ShowBitstream, LockCommandReceived , TwoButtonsPressedReceived);
 McVoiceProtocol mcvoice = McVoiceProtocol( McVoice433ID, TIMERFREQUENCY , ShowBitstream , DeviceTrippedReceived , BatteryEmptyReceived );
 HouseLinkProtocol houselink = HouseLinkProtocol( HouseLink433ID, TIMERFREQUENCY , ShowBitstream , HomeLinkDeviceTrippedReceived  );
 X10Protocol x10 = X10Protocol( X10433ID, TIMERFREQUENCY , ShowBitstream ,  X10CommandReceived );
 ELVProtocol elv = ELVProtocol( ELV868ID, TIMERFREQUENCY , ShowBitstream , TemperatureReceived, HygroReceived );
 
-void PrintNewLine()
-{
-    Serial.println("");
-}
-void PrintProtocolId(ProtocolBase * protocol)
-{
-    Serial.print(protocol->GetId()); 
-    Serial.print(": ");
-}
-void PrintTime(unsigned long pt)
-{
-    unsigned long time = pt - syncedcurrenttime;
-    unsigned long t = syncedtime + time;
-    unsigned long days = t / 86400000; t = t % 86400000;
-    unsigned long hours = t / 3600000; t = t % 3600000;
-    unsigned long mins = t / 60000 ; t = t % 60000;
-    unsigned long secs = t / 1000;
-    Serial.print("["); 
-    Serial.print(days, DEC);
-    Serial.print("-");
-    Serial.print(hours,DEC);
-    Serial.print(":");
-    Serial.print(mins,DEC);
-    Serial.print(":");
-    Serial.print(secs,DEC);
-    Serial.print("]");
-}
-
-
-void PrintBit(bool value)
-{
-  Serial.print(value?"1":"0");
-}
-
-void PrintFloat(float value)
-{
-  int deg=(int)fabs(value); Serial.print(deg,DEC);Serial.print(".");int frac=(int)(fabs(value*10.0f)) % 10; Serial.print(frac,DEC);
-}
     
 void TemperatureReceived(ProtocolBase * protocol, byte device, float temperature)
 {
@@ -395,6 +466,20 @@ void RainReceived(ProtocolBase * protocol, byte device, int rain)
     PrintNewLine();
   #endif
 }
+
+void WindReceived(ProtocolBase * protocol, byte device, int wind)
+{
+  #ifdef ShowReceivedCommands
+    PrintTime(currenttime);  
+    PrintProtocolId(protocol);
+    Serial.print("W ");
+    Serial.print(device,DEC);
+    Serial.print(" ");
+    Serial.print(wind, DEC);
+    PrintNewLine();
+  #endif
+}
+
 
 
 void CommandReceived(ProtocolBase * protocol, byte device, bool lightoncommand)
@@ -765,7 +850,8 @@ void FranElecTrigger(ProtocolBase * protocol, byte device)
 
 }
 
-
+// This method updates the various variables for sending the next set of data.
+// It uses the "sendreceivestate" to determine the previous thing we were doing.
 void GetNextSendPulses()
 {
   // Was the sent pulsebuffer allocated?
@@ -776,27 +862,31 @@ void GetNextSendPulses()
     send_pulsebufferlength = 0;
   }
   
-  // Was the sent pulsebuffer the terminator?
+  // Was the sent pulsebuffer the terminator? 
   if (sendreceivestate == sendingterminator)
   { // Yes
     // Did we complete the number of repeats?
     if (send_repeats==0)
     { // Yes
       sendreceivestate = sendingfinished ;
+      
+      // We can now also release the bitstream-buffer of the command
       free(send_bitbuffer);
       send_bitbuffer = 0;
       
+      // Check if a next command is queued for sending
       sendnextcommand();
     } else
-    {
+    { // No, we still need to send another repitition of the bitstream
       send_repeats -- ;
       
       // Reset the sendreceivestate to be able to retrieve the first PulseBuffer we need to send
       sendreceivestate = stopped;
+
+      // Recurse this method and fetch the pulses (header)
       GetNextSendPulses();
-      return;      
     }
-    return;
+    return; // Leave this function
   }
   
   if (sendreceivestate == stopped)
@@ -809,12 +899,15 @@ void GetNextSendPulses()
     if (send_pulsebuffer==0)
     {
       send_bitpos = 0;
+      
+      // Recurse this method and fetch the pulses of the next part (body bitstream)
       GetNextSendPulses();
-      return;
     }
-    return;
+    
+    return; // Leave this function
   }
-  
+
+  // We were "sendingheader" we will now continue with the body bitstream
   if (sendreceivestate == sendingheader)
   {  
       sendreceivestate = sendingbits;      
@@ -838,8 +931,9 @@ void GetNextSendPulses()
   if (sendreceivestate == sendingbits)
   {
       send_bitpos++;
+      // Have we send all the databits?
       if (send_bitpos >= send_protocol->GetBitstreamLength())
-      {
+      { // Yes
         sendreceivestate = sendingterminator;
         send_pulsepos = 0;
         send_protocol->EncodeTerminator( send_pulsebuffer , send_pulsebufferlength );
@@ -848,9 +942,8 @@ void GetNextSendPulses()
         if (send_pulsebuffer==0)
         {
           GetNextSendPulses();
-          return;
         }
-        return;
+        return; // Leave the function
       } 
       // Get the bit which will be send next
       bool bitvalue = send_protocol->GetBit( send_bitbuffer , send_bitbufferlength , send_bitpos );
@@ -860,24 +953,31 @@ void GetNextSendPulses()
       if (send_pulsebuffer==0)
       {
         GetNextSendPulses();
-        return;
       }
+      return; // Leave the function
     } 
 }
 
+// Check wether the command is already in a collection of commands. 
+// Returns the index within the collection if found. Otherwise -1 if not found in collection.
 int IsCommandInCollection( protocolcommand* commands, byte commandscount , ProtocolBase *protocol, byte * bitbuffer, byte bitbufferlength)
 {
+  // Loop through all commands in the collection
   for (int idx=0; idx < commandscount; idx++)
   {
     protocolcommand* c = &commands[idx];
+    
+    // Is the protocol the same?
     if (c->protocol == protocol)
     {
       bool equalcommand = true;
       
+      // Loop through all bits
       for (int byteidx=0;byteidx<bitbufferlength;byteidx++)
       {
+        // Do the bits differ?
         if (bitbuffer[byteidx]!=(*c).bitbuffer[byteidx])
-        {
+        { // Yes, so NOT equal
           equalcommand = false;
           break;
         }
@@ -907,15 +1007,15 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
   if (idx!=-1)
   { // Yes    
     PrintTime(currenttime);
-    Serial.print(" Already scheduled.");
+    Serial.print("Already scheduled. ");
     protocolcommand* sc = &(ScheduledCommands[idx]);
     if ( overwritewhenlater && (scheduledtime > sc->scheduledtime)) 
     {
-      Serial.print(" Postponed to"); PrintTime(scheduledtime);Serial.println("");
+      Serial.print("Postponed to "); PrintTime(scheduledtime);Serial.println("");
       sc->scheduledtime = scheduledtime;
     } else if (overwritewhenearlier && (scheduledtime < sc->scheduledtime))
     {
-      Serial.print(" Advanced to"); PrintTime(scheduledtime);Serial.println("");
+      Serial.print("Advanced to "); PrintTime(scheduledtime);Serial.println("");
       sc->scheduledtime = scheduledtime;
     } 
     
@@ -931,8 +1031,9 @@ void ScheduleCommand( float seconds , ProtocolBase *protocol, byte * bitbuffer, 
   c->bitbufferlength = bitbufferlength;
   dynamicarrayhelper.AddToArray((void *&)ScheduledCommands, c , ScheduledCommandsCount , sizeof(protocolcommand) );
   free(c);
+  
   PrintTime(currenttime);
-  Serial.println(" Item scheduled");
+  Serial.println("Item scheduled");
 }
 
 
@@ -977,8 +1078,7 @@ void sendnextcommand()
         Serial.print(" Sending: ");
         for (int bitpos=0;bitpos<send_protocol->GetBitstreamLength();bitpos++)
         {
-          int bytepos = bitpos >> 3;
-          PrintBit((send_bitbuffer[bytepos] & (128 >> (bitpos % 8))) != 0) ;
+          PrintBit((send_bitbuffer[ bitpos >> 3 ] & (128 >> (bitpos % 8))) != 0) ;
         }
         PrintNewLine();        
       #endif
@@ -994,11 +1094,17 @@ void loop_queuedcommands()
     unsigned long delta = currenttime - lastrssitrigger;
 
     // Are all receivedpulses processed and
-    // Are we waiting for an rssi-trigger or listening for pulses and the duration have passed?
-    if ( receivedpulsesCircularBuffer_readpos == receivedpulsesCircularBuffer_writepos && ((sendreceivestate == waitingforrssitrigger) || (sendreceivestate==listeningforpulses && delta > SEND_SILENCEDURATION)) )
+    // are we waiting for an rssi-trigger or listening for pulses and the duration has passed?
+    if ( receivedpulsesCircularBuffer_readpos == receivedpulsesCircularBuffer_writepos && 
+          ((sendreceivestate == waitingforrssitrigger) || 
+          (sendreceivestate==listeningforpulses && delta > SEND_SILENCEDURATION)) )
     { // Yes
       sendreceivestate = stopped;
-      detachInterrupt(RSSIIRQNR);      
+      
+      #ifdef RSSIIRQNR
+        detachInterrupt(RSSIIRQNR);      
+      #endif
+      
       TIMSK1=0; //Disable timer interrupt; Stop edge timer, stop overflow interrupt
 
       sendnextcommand();
@@ -1009,10 +1115,12 @@ void loop_queuedcommands()
         unsigned int duration = send_pulsebuffer[ send_pulsepos ]; 
 
         sendpulsestate = HIGH;    
-#ifdef ShowSendPulses
-        ShowSendPulse(duration);
-#endif
-        TCNT1 = ((unsigned int) 65535)- duration;        
+        
+        #ifdef ShowSendPulses
+            ShowPulse(sendpulsestate, duration);
+        #endif
+        
+        TCNT1 = ((unsigned int) 65536)- duration;        
         digitalWrite(TXPIN, sendpulsestate);
         TIMSK1= 1<<TOIE1 /* enable timer overflow interrupt */;
       } else
@@ -1020,7 +1128,6 @@ void loop_queuedcommands()
         sendreceivestate = waitingforrssitrigger;
         attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);
       }
-      
     }
   }
 }
@@ -1039,30 +1146,23 @@ void loop_receive()
     }
 
 #ifdef ShowReceivedPulses    
-    if (state==HIGH) Serial.print("["); else Serial.print(" ");
-    if (duration<10) Serial.print("   "); else if (duration<100) Serial.print("  "); else if (duration<1000) Serial.print(" ");
-    Serial.print(duration , DEC);
-    if (state==HIGH) Serial.print("]"); else Serial.print(" ");
-    if (showidx++>=21)
-    {
-      PrintNewLine();
-      showidx=0;
-    }
+    ShowPulse(state , duration);
 #endif
 
-    franelec.Decode( state , duration );
-    ranex.Decode( state , duration );
-    elro.Decode( state , duration );
-    kaku.Decode( state , duration );
-    skytronic.Decode( state , duration );
-    lacrosse.Decode( state , duration );
+    // Feed the signal to all the decoders
+//    franelec.Decode( state , duration );
+//    ranex.Decode( state , duration );
+//    elro.Decode( state , duration );
+//    kaku.Decode( state , duration );
+//    skytronic.Decode( state , duration );
+//    lacrosse.Decode( state , duration );
     lacrosse2.Decode( state , duration );
-    siemens5wk4.Decode( state , duration );
-    mcvoice.Decode( state , duration );
-    houselink.Decode( state, duration );
-    x10.Decode( state, duration );
+//    siemens5wk4.Decode( state , duration );
+//    mcvoice.Decode( state , duration );
+//    houselink.Decode( state, duration );
+//    x10.Decode( state, duration );
 //    unknown1.Decode( state, duration );
-    elv.Decode( state, duration );
+//    elv.Decode( state, duration );
   }
 }
 
@@ -1070,15 +1170,13 @@ void loop()
 {
   currenttime = millis();
   
-  unsigned long int delta = currenttime - last_check_scheduledcommands;
-  if ( delta > UPDATEFREQUENCY_SCHEDULEDCOMMANDS )
+  if ( (currenttime - last_check_scheduledcommands) > UPDATEFREQUENCY_SCHEDULEDCOMMANDS )
   {
     loop_scheduledcommands();
     last_check_scheduledcommands = currenttime ;
   }
 
-  delta = currenttime - last_check_queuedcommands;
-  if ( delta  > UPDATEFREQUENCY_QUEUEDCOMMANDS )
+  if ( (currenttime - last_check_queuedcommands) > UPDATEFREQUENCY_QUEUEDCOMMANDS )
   {
     loop_queuedcommands();
     last_check_queuedcommands = currenttime;
@@ -1111,7 +1209,11 @@ void setup()
   sendreceivestate = waitingforrssitrigger;
   
   TCCR1A=0;   // Normal mode (Timer1)
-  TCCR1B = 0<<ICES1 /* Input Capture Edge Select */ | 1<<CS12 /* prescaler */ | 0<<CS11 /* prescaler */  | 0<<CS10 /* prescaler */ | 1<<ICNC1 /* Capture Noice Canceler */;  
+  #ifdef PRESCALER256
+    TCCR1B = 0<<ICES1 /* Input Capture Edge Select */ | 1<<CS12 /* prescaler */ | 0<<CS11 /* prescaler */  | 0<<CS10 /* prescaler */ | 1<<ICNC1 /* Capture Noice Canceler */;  
+  #else
+    TCCR1B = 0<<ICES1 /* Input Capture Edge Select */ | 0<<CS12 /* prescaler */ | 1<<CS11 /* prescaler */  | 1<<CS10 /* prescaler */ | 1<<ICNC1 /* Capture Noice Canceler */;  
+  #endif
   TIMSK1 = 0<<ICIE1 /* Timer/Counter 1, Input Capture Interrupt disabled */ ;  
 
   attachInterrupt(RSSIIRQNR, rssiPinTriggered , RISING);

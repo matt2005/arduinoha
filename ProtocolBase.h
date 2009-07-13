@@ -5,10 +5,17 @@
 class ProtocolBase {
 	public:
 		// Constructor
-		ProtocolBase(			
-			char * id , // An identifying string
-			void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer, byte length ) , // An  eventhandler event	
+		ProtocolBase(	
+            // An identifying string		
+			char * id , 
+			
+			// An  eventhandler event which will be called when a bitstream has been received and decoded
+			void (*BitsstreamReceivedEvent)(ProtocolBase * protocol , byte* buffer, byte length ) , 
+			
+			// The length of the bitstream
 			int bitstreamlength , 
+			
+			// The number of repetitions
 			int sendrepeats
 		);		
 		
@@ -18,53 +25,39 @@ class ProtocolBase {
 		// Retrieve the number of repeats needed for this protocol
 		int GetSendRepeats();
 		
-		//  Retrieves a bit from the buffer
+		//  Retrieve a bit from the bitstream buffer
 		bool GetBit(byte * bitbuffer, byte bitbufferlength , unsigned short bitpos);
 		
-		char * GetId()
-		{
-			return _id;
-		}
+		// Retrieve the identifying string
+		char * GetId();
 		
-		// This function returns a buffer with the pulse data of the header for this protocol
-		virtual void EncodeHeader(unsigned int *& pulsebuffer, byte & pulsebufferlength)
-		{
-			pulsebuffer = 0;
-			pulsebufferlength = 0;
-		}
+		// This function returns a buffer with the pulse data of the header for this protocol. 
+		virtual void EncodeHeader(unsigned int *& pulsebuffer, byte & pulsebufferlength);
 
-		// This function returns a buffer with the pulse data of a bit for this protocol
-		virtual void EncodeBit(unsigned int *& pulsebuffer, byte & pulsebufferlength, bool bitvalue)
-		{
-			pulsebuffer = 0;
-			pulsebufferlength = 0;
-		}
+		// This function returns a buffer with the pulse data of a bit-value for this protocol
+		virtual void EncodeBit(unsigned int *& pulsebuffer, byte & pulsebufferlength, bool bitvalue);
 
 		// This function returns a buffer with the pulse data of the terminator for this protocol
-		virtual void EncodeTerminator(unsigned int *& pulsebuffer, byte & pulsebufferlength)
-		{
-			pulsebuffer = 0;
-			pulsebufferlength = 0;
-		}		
+		virtual void EncodeTerminator(unsigned int *& pulsebuffer, byte & pulsebufferlength);
 	private:
 	protected:
-		// The ID of this protocol instance
+		// The identifying string of this protocol instance
 		char * _id;
-
-		// This variable holds the bitposition where the next bit will be stored
-		byte decoder_bitpos ;
-
-		// This variable holds a reference to the buffer of the stream of bits which have been received
-		byte * decoder_bitbuffer ;
-
-		// This variable holds the length of the buffer allocated
-		byte decoder_bitbufferlength ;
 		
-		// This variable holds the length of the bitstream
+		// This variable holds the length of the protocol' bistream
 		int _bitstreamlength ;
 		
-		// This variable holds the number of repeats for sending a command
+		// This variable holds the number of repeats for sending a command for this protocol
 		int _sendrepeats ;
+
+		// This variable holds a reference to the decoder bitstream buffer of the stream of bits which have been received
+		byte * decoder_bitbuffer ;
+
+		// This variable holds the decoder bitstream buffer bitposition where the next bit will be stored when decoded
+		byte decoder_bitpos ;
+
+		// This variable holds the length of the decoder bitstream buffer allocated
+		byte decoder_bitbufferlength ;
 
 		// This method will calculate the difference between the value of duration and the expectedduration
 		unsigned int CalculateDeviation(unsigned int duration , unsigned int expectedduration);

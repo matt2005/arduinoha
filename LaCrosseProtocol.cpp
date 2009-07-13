@@ -1,13 +1,15 @@
 #include "LaCrosseProtocol.h"
 #include <hardwareserial.h>
 
-#define MaxDeviation 10
 #define CombinationDuration1 147
 #define CombinationDuration2 99
 #define Terminator 970
 
 #define HIGH 0x1
 #define LOW  0x0
+
+// The LaCrosse-protcol looks like it's using some kind of Manchester-related-code.
+// I don't think it's a pure MC-implementation as i don't find the 2:3:4 proportions, but a 2 : 3 : 4.67 proportion-ratio.
 
 LaCrosseProtocol::LaCrosseProtocol(
 	char * id,
@@ -22,25 +24,29 @@ LaCrosseProtocol::LaCrosseProtocol(
 	_HygroReceivedEvent = HygroReceivedEvent;
 	_RainReceivedEvent = RainReceivedEvent;
 	
+	_timeperiodduration = (TimerFrequency / 5953.38f);
+	_maxdeviation = _timeperiodduration;
+	
 	prevduration = 0;
 }
 
 void LaCrosseProtocol::Decode(short state, unsigned int duration)
 {  
   if (state==LOW)
-  { 
+  {
+    // Calculate the length of the high and low 
 	int pulsecycleduration = duration + prevduration;
-	total += pulsecycleduration;
-	if (WithinExpectedDeviation( pulsecycleduration , (6 * 10.5f) ,  MaxDeviation) )
+	
+	if (WithinExpectedDeviation( pulsecycleduration , (6 * _timeperiodduration) ,  _maxdeviation) )
 	{ // 	 
 		AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , false);
-	} else if (WithinExpectedDeviation( pulsecycleduration , (14 *10.5f) ,  MaxDeviation) )
+	} else if (WithinExpectedDeviation( pulsecycleduration , (14 * _timeperiodduration) ,  _maxdeviation) )
 	{ // 0
 		AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , false);
-	} else if (WithinExpectedDeviation( pulsecycleduration , (9*10.5f) ,  MaxDeviation) )
+	} else if (WithinExpectedDeviation( pulsecycleduration , (9 * _timeperiodduration) ,  _maxdeviation) )
     { // 1
         AddBit( decoder_bitbuffer , decoder_bitbufferlength, decoder_bitpos , true);
-    } else if ( decoder_bitpos>=GetBitstreamLength() && decoder_bitpos<=GetBitstreamLength()+3 && pulsecycleduration>1700)
+    } else if ( decoder_bitpos>=GetBitstreamLength() && decoder_bitpos<=GetBitstreamLength()+3 && pulsecycleduration>(160*_timeperiodduration))
 	{
 		if (_BitsstreamReceivedEvent!=0) _BitsstreamReceivedEvent( this , decoder_bitbuffer , decoder_bitpos);
 			
