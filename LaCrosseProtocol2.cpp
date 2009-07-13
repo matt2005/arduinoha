@@ -18,6 +18,7 @@ LaCrosseProtocol2::LaCrosseProtocol2(
 	_RainReceivedEvent = RainReceivedEvent;
 	_WindReceivedEvent = WindReceivedEvent;
 }
+
 	void LaCrosseProtocol2::DecodeBitstream(unsigned int lasthigh, unsigned int lastlow)
 	{
 		if (decoder_bitpos==GetBitstreamLength())
@@ -66,4 +67,30 @@ LaCrosseProtocol2::LaCrosseProtocol2(
 			}
 		}
 	}
+	
+void LaCrosseProtocol2::EncodeTemperatureCommand(byte device, float value , byte *& bitbuffer, byte &bitbufferlength )
+{
+  bitbuffer = 0;
+  bitbufferlength = 0;  
+  
+  SetBitBufferLength(bitbuffer, bitbufferlength , GetBitstreamLength() );
+
+  SetBit(bitbuffer, bitbufferlength ,  3 , true );
+  SetBit(bitbuffer, bitbufferlength ,  6 , true );
+  
+  SetBit(bitbuffer, bitbufferlength ,  14 , true );
+  SetBit(bitbuffer, bitbufferlength ,  15 , true );
+  SetBit(bitbuffer, bitbufferlength ,  16 , true );
+  SetBit(bitbuffer, bitbufferlength ,  17 , true );
+  SetBit(bitbuffer, bitbufferlength ,  18 , true );
+  
+  SetBit(bitbuffer, bitbufferlength ,  20 , true );
+  SetBit(bitbuffer, bitbufferlength ,  21 , true );
+  SetBit(bitbuffer, bitbufferlength ,  22 , true );
+  SetBit(bitbuffer, bitbufferlength ,  23 , true );
+  SetBit(bitbuffer, bitbufferlength ,  24 , true );
+  SetBit(bitbuffer, bitbufferlength ,  25 , true );
+  
+  SetBit(bitbuffer, bitbufferlength ,  39 , true );
+}
 	
