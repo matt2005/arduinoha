@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+# SharpDevelop 3.0.0.3800
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RFPlot", "RFPlot\RFPlot.csproj", "{055A200A-AAF7-4E86-84EA-F4CF5D8A9E6A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{055A200A-AAF7-4E86-84EA-F4CF5D8A9E6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{055A200A-AAF7-4E86-84EA-F4CF5D8A9E6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{055A200A-AAF7-4E86-84EA-F4CF5D8A9E6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{055A200A-AAF7-4E86-84EA-F4CF5D8A9E6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+EndGlobal

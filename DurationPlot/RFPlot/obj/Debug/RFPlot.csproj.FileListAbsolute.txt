@@ -1,0 +1,7 @@
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\obj\Debug\ResolveAssemblyReference.cache
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\obj\Debug\RFPlot.MainForm.resources
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\obj\Debug\RFPlot.csproj.GenerateResource.Cache
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\bin\Debug\RFPlot.exe
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\bin\Debug\RFPlot.pdb
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\obj\Debug\RFPlot.exe
+\\Storage\Profiles\Sander Schutten\Mijn Documenten\SharpDevelop Projects\DurationPlot\RFPlot\obj\Debug\RFPlot.pdb
