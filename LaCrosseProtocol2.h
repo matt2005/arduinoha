@@ -14,6 +14,7 @@ class LaCrosseProtocol2 : public ConstantLengthLowPulseProtocolBase {
 			void (*RainReceivedEvent)(ProtocolBase * protocol, byte device , int rain),
 			void (*WindReceivedEvent)(ProtocolBase * protocol, byte device , int wind)			
 		);
+		void EncodeTemperatureCommand(byte device, float value , byte *& bitbuffer, byte &bitbufferlength );
 	protected:
 		void DecodeBitstream(unsigned int lasthigh, unsigned int lastlow);
 	private:
